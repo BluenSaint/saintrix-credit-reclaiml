@@ -21,7 +21,9 @@ const Auth = () => {
     confirmPassword: "",
     firstName: "",
     lastName: "",
-    agreeToTerms: false
+    agreeToTerms: false,
+    accessCode: "",
+    legacyCode: ""
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,11 +45,25 @@ const Auth = () => {
         setIsLoading(false);
         return;
       }
+      // Email confirmation check
+      if (!data.user.confirmed_at) {
+        setError("Please confirm your email before logging in.");
+        toast({ title: "Email not confirmed", description: "Please confirm your email before logging in.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
       // Confirm user_metadata.role exists
       const role = data.user.user_metadata?.role;
       if (!role) {
         setError("Account not fully set up. Please contact support.");
         toast({ title: "Login failed", description: "Account missing role metadata.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      // Legacy client approval check
+      if (role === "client" && data.user.user_metadata?.approved === false) {
+        navigate("/pending-approval");
+        toast({ title: "Pending Approval", description: "Your account is pending admin approval.", variant: "default" });
         setIsLoading(false);
         return;
       }
@@ -80,6 +96,8 @@ const Auth = () => {
       return;
     }
     try {
+      const isAdmin = formData.accessCode === "SAINTRIX_ADMIN_MASTER";
+      const legacyClient = formData.legacyCode === "LEGACY2024";
       const { data, error: signupError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -87,7 +105,10 @@ const Auth = () => {
           data: {
             firstName: formData.firstName,
             lastName: formData.lastName,
-            role: "client"
+            role: isAdmin ? "admin" : "client",
+            access_code: formData.accessCode || null,
+            legacy_access_code: legacyClient ? formData.legacyCode : null,
+            approved: legacyClient ? false : true
           }
         }
       });
@@ -105,8 +126,18 @@ const Auth = () => {
         setIsLoading(false);
         return;
       }
-      toast({ title: "Account created!", description: "Please check your email to verify your account." });
-      navigate("/intake");
+      // Show correct toast and route
+      if (legacyClient) {
+        toast({ title: "Signup successful!", description: "Thanks! You'll get full access after admin approval. Please check your email to confirm your account.", variant: "default" });
+        navigate("/pending-approval");
+      } else {
+        toast({ title: "Account created!", description: "Please check your email and confirm it before logging in." });
+        if (isAdmin) {
+          navigate("/admin");
+        } else {
+          navigate("/intake");
+        }
+      }
     } catch (err: any) {
       setError("Unexpected error during signup.");
       toast({ title: "Signup failed", description: err.message, variant: "destructive" });
@@ -275,6 +306,30 @@ const Auth = () => {
                       onChange={handleInputChange}
                       className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
                       required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accessCode" className="text-white">Access Code <span className="text-xs text-white/60">(optional, for admin)</span></Label>
+                    <Input
+                      id="accessCode"
+                      name="accessCode"
+                      placeholder="Enter admin access code (if any)"
+                      value={formData.accessCode}
+                      onChange={handleInputChange}
+                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="legacyCode" className="text-white">Legacy Access Code <span className="text-xs text-white/60">(optional)</span></Label>
+                    <Input
+                      id="legacyCode"
+                      name="legacyCode"
+                      placeholder="Enter legacy access code (if any)"
+                      value={formData.legacyCode}
+                      onChange={handleInputChange}
+                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
                     />
                   </div>
 
