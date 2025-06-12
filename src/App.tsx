@@ -1,43 +1,83 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Intake from "./pages/Intake";
-import Dashboard from "./pages/Dashboard";
-import Letters from "./pages/Letters";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
-import AdminLogs from "./pages/AdminLogs";
-import AdminFlags from "./pages/AdminFlags";
-import AdminRevenue from "./pages/AdminRevenue";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
+import { AdminLayout } from './components/admin/AdminLayout';
+import { UserManagement } from './components/admin/UserManagement';
+import { DisputesPanel } from './components/admin/DisputesPanel';
+import { LogsPanel } from './components/admin/LogsPanel';
+import { RevenuePanel } from './components/admin/RevenuePanel';
+import { Dashboard } from './components/Dashboard';
+import { SignupFlow } from './components/signup/SignupFlow';
+import { Login } from './components/Login';
 
-const queryClient = new QueryClient();
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}> = ({ children, requireAdmin = false }) => {
+  const { user, loading } = useAuth();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/intake" element={<Intake />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/letters" element={<Letters />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/logs" element={<AdminLogs />} />
-          <Route path="/admin/flags" element={<AdminFlags />} />
-          <Route path="/admin/revenue" element={<AdminRevenue />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
-export default App;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!requireAdmin && user.role === 'admin') {
+    return <Navigate to="/admin/users" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+export const App: React.FC = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/admin/users" replace />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="disputes" element={<DisputesPanel />} />
+          <Route path="logs" element={<LogsPanel />} />
+          <Route path="revenue" element={<RevenuePanel />} />
+        </Route>
+
+        {/* User Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/signup/*"
+          element={
+            <ProtectedRoute>
+              <SignupFlow />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Router>
+  );
+};
