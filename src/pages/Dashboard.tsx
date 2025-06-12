@@ -25,7 +25,8 @@ import {
   Zap,
   CreditCard,
   User,
-  AlertCircle
+  AlertCircle,
+  Download
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -37,6 +38,8 @@ import ClientGuard from '@/components/guards/ClientGuard'
 import { DisputeProgress } from "@/components/DisputeProgress";
 import { AIDashboardAssistant } from "@/components/AIDashboardAssistant";
 import { FeedbackButton } from "@/components/FeedbackButton";
+import { ReferralSystem } from '@/components/ReferralSystem';
+import { CreditInsuranceManager } from '@/components/CreditInsuranceManager';
 
 interface DashboardData {
   client: any
@@ -329,6 +332,47 @@ const Dashboard = () => {
     }
   };
 
+  const handleDownloadCasePack = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const response = await fetch('/api/generate-case-pack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate case pack');
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `case-pack-${user.id}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({ title: 'Case pack downloaded successfully!' });
+    } catch (err: any) {
+      toast({ 
+        title: 'Failed to download case pack', 
+        description: err.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -468,6 +512,24 @@ const Dashboard = () => {
                 </div>
               )}
             </Card>
+
+            {/* Referral System Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Users className="h-6 w-6 text-blue-500" />
+                <h3 className="text-lg font-medium">Referral Program</h3>
+              </div>
+              <ReferralSystem />
+            </Card>
+
+            {/* Credit Insurance Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Shield className="h-6 w-6 text-blue-500" />
+                <h3 className="text-lg font-medium">Credit Insurance</h3>
+              </div>
+              <CreditInsuranceManager />
+            </Card>
           </div>
         </div>
       </div>
@@ -496,6 +558,14 @@ const Dashboard = () => {
           </SheetContent>
         </Sheet>
       )}
+
+      <Button
+        onClick={handleDownloadCasePack}
+        className="flex items-center gap-2"
+      >
+        <Download className="w-4 h-4" />
+        Download Case File
+      </Button>
     </ClientGuard>
   );
 };

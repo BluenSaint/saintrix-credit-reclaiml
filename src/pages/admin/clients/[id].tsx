@@ -15,7 +15,8 @@ import {
   Calendar,
   MapPin,
   Shield,
-  ArrowLeft
+  ArrowLeft,
+  Download
 } from 'lucide-react'
 import AdminGuard from '@/components/guards/AdminGuard'
 
@@ -121,6 +122,47 @@ export default function ClientDetail() {
     }
   }
 
+  const handleDownloadCasePack = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const response = await fetch('/api/generate-case-pack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: client.user_id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate case pack');
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `case-pack-${client.id}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({ title: 'Case pack downloaded successfully!' });
+    } catch (err: any) {
+      toast({ 
+        title: 'Failed to download case pack', 
+        description: err.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -161,6 +203,16 @@ export default function ClientDetail() {
             </Button>
             <h1 className="text-3xl font-bold text-gray-900">{client.full_name}</h1>
             <p className="text-gray-600 mt-2">Client Details</p>
+          </div>
+
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={handleDownloadCasePack}
+              className="flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download Case File
+            </Button>
           </div>
 
           {/* Client Info Card */}
