@@ -56,30 +56,24 @@ const Dashboard = () => {
   const [letterPreview, setLetterPreview] = useState<string | null>(null);
   const [showLetterModal, setShowLetterModal] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState<any>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
-  const upcomingTasks = [
-    {
-      id: 1,
-      task: "Review dispute responses",
-      dueDate: "2024-01-25",
-      priority: "high",
-      daysLeft: 3
-    },
-    {
-      id: 2,
-      task: "Upload bank statements",
-      dueDate: "2024-01-28",
-      priority: "medium",
-      daysLeft: 6
-    },
-    {
-      id: 3,
-      task: "Second round disputes ready",
-      dueDate: "2024-02-01",
-      priority: "low",
-      daysLeft: 10
-    }
-  ];
+  const fetchTasks = async (userId: string) => {
+    setTasksLoading(true);
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .order("due_date", { ascending: true });
+    if (!error) setTasks(data || []);
+    setTasksLoading(false);
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+    await supabase.from("tasks").update({ completed: true }).eq("id", taskId);
+    if (client) fetchTasks(client.user_id);
+  };
 
   // Fetch documents
   const fetchDocuments = async (clientId: string) => {
@@ -122,6 +116,8 @@ const Dashboard = () => {
         setReferralStats((prev) => ({ ...prev, totalReferred: totalReferred || 0, referralCode: clientData.referral_code || "" }));
         // Documents
         await fetchDocuments(clientData.id);
+        // Tasks
+        await fetchTasks(user.id);
       } catch (err: any) {
         toast({ title: "Error loading dashboard", description: err.message, variant: "destructive" });
       } finally {
@@ -473,22 +469,35 @@ const Dashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {upcomingTasks.map((task) => (
-                    <div key={task.id} className="p-3 border rounded-lg">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-medium text-sm">{task.task}</h4>
-                        <Badge 
-                          variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'secondary' : 'outline'}
-                          className="text-xs"
-                        >
-                          {task.daysLeft}d
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-gray-500">Due: {task.dueDate}</p>
-                    </div>
-                  ))}
-                </div>
+                {tasksLoading ? (
+                  <div className="text-gray-500">Loading tasks...</div>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.length === 0 ? (
+                      <div className="text-gray-400">No tasks yet.</div>
+                    ) : (
+                      tasks.map((task) => (
+                        <div key={task.id} className={`p-3 border rounded-lg ${task.completed ? 'bg-green-50' : ''}`}> 
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-medium text-sm line-through={task.completed}">{task.title}</h4>
+                            <Badge 
+                              variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'secondary' : 'outline'}
+                              className="text-xs"
+                            >
+                              {task.due_date ? `${Math.max(0, Math.ceil((new Date(task.due_date).getTime() - Date.now()) / (1000*60*60*24)))}d` : ''}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-500">Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A'}</p>
+                          {!task.completed && (
+                            <Button size="sm" variant="outline" className="mt-2" onClick={() => handleCompleteTask(task.id)}>
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

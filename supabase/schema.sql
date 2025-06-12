@@ -105,6 +105,17 @@ create table if not exists subscriptions (
   ended_at timestamp with time zone
 );
 
+-- 10. tasks (for dashboard to-do list)
+create table if not exists tasks (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) not null,
+  title text not null,
+  due_date date,
+  priority text check (priority in ('low', 'medium', 'high')) default 'low',
+  completed boolean default false,
+  created_at timestamp with time zone default now() not null
+);
+
 -- Enable RLS for all tables
 alter table clients enable row level security;
 alter table disputes enable row level security;
@@ -198,4 +209,7 @@ create policy if not exists "Admin can insert self" on admins for insert with ch
 
 -- 3. Settings table
 alter table settings enable row level security;
-create policy if not exists "Admin can access settings" on settings for all using (auth.uid() in (select id from admins)); 
+create policy if not exists "Admin can access settings" on settings for all using (auth.uid() in (select id from admins));
+
+-- 4. Tasks table
+create index if not exists idx_tasks_user_id on tasks (user_id); 

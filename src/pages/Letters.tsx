@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,58 +17,42 @@ import {
   Eye,
   Zap
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 const Letters = () => {
   const navigate = useNavigate();
   const [selectedLetter, setSelectedLetter] = useState(null);
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const negativeItems = [
-    {
-      id: 1,
-      creditor: "Capital One",
-      account: "****1234",
-      type: "Late Payment",
-      date: "2023-08-15",
-      amount: "$2,500",
-      status: "Verified",
-      dispute: {
-        reason: "Payment was made on time",
-        fcraSection: "Section 611(a)(1)(A)",
-        evidence: ["Bank statement", "Payment confirmation"],
-        letterGenerated: true
+  useEffect(() => {
+    const fetchDisputes = async () => {
+      setLoading(true);
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error("Not authenticated");
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+        if (clientError || !clientData) throw new Error("Client record not found");
+        const { data: disputesData, error: disputesError } = await supabase
+          .from("disputes")
+          .select("*")
+          .eq("client_id", clientData.id)
+          .order("created_at", { ascending: false });
+        if (disputesError) throw disputesError;
+        setDisputes(disputesData || []);
+      } catch (err: any) {
+        toast({ title: "Error loading disputes", description: err.message, variant: "destructive" });
+      } finally {
+        setLoading(false);
       }
-    },
-    {
-      id: 2,
-      creditor: "Midland Funding",
-      account: "****5678",
-      type: "Collection",
-      date: "2023-03-10", 
-      amount: "$1,200",
-      status: "Unverified",
-      dispute: {
-        reason: "Account not mine",
-        fcraSection: "Section 623(a)(8)",
-        evidence: ["Identity documents"],
-        letterGenerated: true
-      }
-    },
-    {
-      id: 3,
-      creditor: "Discover Card",
-      account: "****9012",
-      type: "Charge-off",
-      date: "2022-12-05",
-      amount: "$3,800",
-      status: "Disputed",
-      dispute: {
-        reason: "Account was settled",
-        fcraSection: "Section 611(a)(1)(B)",
-        evidence: ["Settlement agreement", "Payment receipt"],
-        letterGenerated: false
-      }
-    }
-  ];
+    };
+    fetchDisputes();
+  }, []);
 
   const letterTemplate = `Dear Credit Bureau,
 
@@ -156,12 +140,12 @@ Enclosures: Supporting documentation`;
                 <p className="text-gray-600">Select an item to generate or view dispute letters</p>
               </div>
               <Badge className="bg-purple-100 text-purple-800">
-                {negativeItems.length} items to dispute
+                {disputes.length} items to dispute
               </Badge>
             </div>
 
             <div className="grid gap-4">
-              {negativeItems.map((item) => (
+              {disputes.map((item) => (
                 <Card key={item.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <div className="flex items-center justify-between">
