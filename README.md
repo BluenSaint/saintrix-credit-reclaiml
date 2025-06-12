@@ -1,73 +1,60 @@
-# Welcome to your Lovable project
+# SAINTRIX Credit Reclaim
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/98919b38-4f1b-4476-a3b2-973df2401380
+This is the production source of truth for the SAINTRIX Credit Reclaim application.
 
-## How can I edit this code?
+**Tech Stack:**
+- Vite
+- React
+- TypeScript
+- Zustand (for auth state)
+- Supabase (backend, RLS, user roles)
+- shadcn/ui + Tailwind CSS
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
+- Node.js & npm (recommended: use [nvm](https://github.com/nvm-sh/nvm#installing-and-updating))
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/98919b38-4f1b-4476-a3b2-973df2401380) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+### Setup
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repository
+git clone https://github.com/BluenSaint/saintrix-credit-reclaiml.git
+cd saintrix-credit-reclaiml
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Copy the example environment file and fill in your values
+cp .env.example .env.local
+# Edit .env.local and set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
+See `.env.example` for required variables:
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Deployment
+This project is deployed via [Vercel](https://vercel.com/). Pushes to the `main` branch will trigger a production deployment.
 
-**Use GitHub Codespaces**
+## Project Structure
+- `src/` — Main application code (React, Zustand, routing, etc.)
+- `supabase/` — Supabase configuration
+- `public/` — Static assets
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Features
+- Secure login, intake, dashboard, and admin routes
+- Auth guards and role-based routing
+- Loading spinners, toast notifications, and dynamic UI data binding
 
-## What technologies are used for this project?
+## Contributing
+Open a pull request or create an issue for suggestions and improvements.
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/98919b38-4f1b-4476-a3b2-973df2401380) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+© SAINTRIX. All rights reserved.
