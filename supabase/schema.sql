@@ -65,6 +65,46 @@ create table feedback (
   created_at timestamp with time zone default now() not null
 );
 
+-- 6. admin_notifications
+create table if not exists admin_notifications (
+  id uuid primary key default uuid_generate_v4(),
+  type text not null, -- e.g. 'dispute', 'legacy_signup', 'upload', 'warning'
+  message text not null,
+  user_id uuid references auth.users(id),
+  created_at timestamp with time zone default now() not null,
+  read boolean default false
+);
+
+-- 7. admin_log
+create table if not exists admin_log (
+  id uuid primary key default uuid_generate_v4(),
+  admin_id uuid references auth.users(id) not null,
+  action text not null,
+  target_user_id uuid references auth.users(id),
+  details jsonb,
+  created_at timestamp with time zone default now() not null
+);
+
+-- 8. flagged_clients
+create table if not exists flagged_clients (
+  id uuid primary key default uuid_generate_v4(),
+  client_id uuid references clients(id) not null,
+  reason text not null,
+  created_at timestamp with time zone default now() not null,
+  status text default 'open' -- open, acknowledged, follow_up, resolved
+);
+
+-- 9. subscriptions
+create table if not exists subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  client_id uuid references clients(id) not null,
+  plan text not null,
+  status text not null, -- active, canceled, trialing, etc.
+  amount numeric not null,
+  started_at timestamp with time zone default now() not null,
+  ended_at timestamp with time zone
+);
+
 -- Enable RLS for all tables
 alter table clients enable row level security;
 alter table disputes enable row level security;

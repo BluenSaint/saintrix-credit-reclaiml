@@ -145,6 +145,12 @@ const Dashboard = () => {
         { client_id: client.id, type: docType, file_url: publicUrl, created_at: new Date().toISOString() }
       ]);
       if (insertError) throw insertError;
+      // Add notification
+      await supabase.from("admin_notifications").insert({
+        type: "upload",
+        message: `Document uploaded by ${client.full_name}`,
+        user_id: client.user_id
+      });
       toast({ title: "Document uploaded!" });
       setSelectedFile(null);
       setDocType("");
@@ -166,6 +172,12 @@ const Dashboard = () => {
         { client_id: client.id, bureau: disputeForm.bureau, reason: disputeForm.reason, status: "draft", created_at: new Date().toISOString() }
       ]);
       if (error) throw error;
+      // Add notification
+      await supabase.from("admin_notifications").insert({
+        type: "dispute",
+        message: `New Dispute from ${client.full_name}`,
+        user_id: client.user_id
+      });
       toast({ title: "Dispute submitted!" });
       setDisputeForm({ bureau: "", reason: "" });
       // Re-fetch disputes
@@ -237,6 +249,18 @@ const Dashboard = () => {
         }
       ]);
       if (error) throw error;
+      // Log to admin_log
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      await supabase.from("admin_log").insert({
+        admin_id: adminUser.id,
+        action: "generate_letter",
+        target_user_id: client.user_id,
+        details: {
+          bureau: dispute.bureau,
+          item_name: dispute.item,
+          reason: dispute.reason
+        }
+      });
       setLetterPreview(letterContent);
       setShowLetterModal(true);
       toast({ title: "Letter generated!" });

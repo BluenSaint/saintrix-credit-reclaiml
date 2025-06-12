@@ -128,6 +128,12 @@ const Auth = () => {
       }
       // Show correct toast and route
       if (legacyClient) {
+        // Add notification
+        await supabase.from("admin_notifications").insert({
+          type: "legacy_signup",
+          message: `Legacy Signup: ${formData.firstName} ${formData.lastName}`,
+          user_id: data.user.id
+        });
         toast({ title: "Signup successful!", description: "Thanks! You'll get full access after admin approval. Please check your email to confirm your account.", variant: "default" });
         navigate("/pending-approval");
       } else {

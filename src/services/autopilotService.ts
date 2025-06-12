@@ -35,6 +35,7 @@ export const autopilotService = {
       const { data: clients, error } = await supabase.from("clients").select("id, user_id, full_name");
       if (error) throw error;
       for (const client of clients || []) {
+        // 1. No dispute in 14+ days
         const { data: lastDispute } = await supabase
           .from("disputes")
           .select("created_at")
@@ -45,8 +46,45 @@ export const autopilotService = {
         const lastDate = lastDispute?.created_at ? new Date(lastDispute.created_at) : null;
         const now = new Date();
         if (!lastDate || (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24) >= 14) {
-          // Flag client (placeholder: update a field or log)
-          await supabase.from("autopilot_log").insert({ client_id: client.id, action: "priority_flag", timestamp: now.toISOString() });
+          // Only flag if not already open
+          const { data: existing } = await supabase.from("flagged_clients").select("id").eq("client_id", client.id).eq("reason", "No disputes in 14+ days").eq("status", "open").maybeSingle();
+          if (!existing) {
+            await supabase.from("flagged_clients").insert({ client_id: client.id, reason: "No disputes in 14+ days" });
+            await supabase.from("admin_notifications").insert({
+              type: "flag",
+              message: `Client flagged: ${client.full_name} (No disputes in 14+ days)` ,
+              user_id: client.user_id
+            });
+          }
+        }
+        // 2. Missing documents
+        const { data: docs } = await supabase.from("documents").select("id").eq("client_id", client.id);
+        if (!docs || docs.length === 0) {
+          const { data: existing } = await supabase.from("flagged_clients").select("id").eq("client_id", client.id).eq("reason", "Missing documents").eq("status", "open").maybeSingle();
+          if (!existing) {
+            await supabase.from("flagged_clients").insert({ client_id: client.id, reason: "Missing documents" });
+            await supabase.from("admin_notifications").insert({
+              type: "flag",
+              message: `Client flagged: ${client.full_name} (Missing documents)` ,
+              user_id: client.user_id
+            });
+          }
+        }
+        // 3. Feedback rating < 3
+        const { data: feedbacks } = await supabase.from("feedback").select("rating").eq("client_id", client.id);
+        if (feedbacks && feedbacks.length > 0) {
+          const avg = feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length;
+          if (avg < 3) {
+            const { data: existing } = await supabase.from("flagged_clients").select("id").eq("client_id", client.id).eq("reason", "Low feedback rating").eq("status", "open").maybeSingle();
+            if (!existing) {
+              await supabase.from("flagged_clients").insert({ client_id: client.id, reason: "Low feedback rating" });
+              await supabase.from("admin_notifications").insert({
+                type: "flag",
+                message: `Client flagged: ${client.full_name} (Low feedback rating)` ,
+                user_id: client.user_id
+              });
+            }
+          }
         }
       }
     } catch (err: any) {
@@ -87,6 +125,11 @@ export const autopilotService = {
   // Log errors
   async logError(where: string, message: string) {
     await supabase.from("autopilot_log").insert({ action: "error", details: JSON.stringify({ where, message }), timestamp: new Date().toISOString() });
+    // Add notification
+    await supabase.from("admin_notifications").insert({
+      type: "autopilot",
+      message: `Autopilot paused or failed: ${message}`
+    });
   },
 
   // Run all autopilot tasks (to be called by scheduler or manually)
