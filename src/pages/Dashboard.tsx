@@ -28,7 +28,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generateLetter } from "@/utils/generateLetter";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const Dashboard = () => {
@@ -202,12 +201,24 @@ const Dashboard = () => {
     }
   };
 
+  // Add API call for letter generation
+  async function callGenerateLetterAPI(payload: any) {
+    const res = await fetch("/api/generate-letter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Failed to generate letter");
+    const data = await res.json();
+    return data.letter;
+  }
+
   // Generate dispute letter handler
   const handleGenerateLetter = async (dispute: any) => {
     setGeneratingLetter(true);
     setSelectedDispute(dispute);
     try {
-      const letterContent = await generateLetter({
+      const letterContent = await callGenerateLetterAPI({
         clientName: client.full_name,
         itemName: dispute.item,
         bureau: dispute.bureau,
