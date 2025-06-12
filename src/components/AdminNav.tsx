@@ -1,4 +1,4 @@
-import { Users, FileText, Settings, LogOut, BarChart3, Bell, Shield, Award, MessageSquare } from 'lucide-react';
+import { Users, FileText, Settings, LogOut, BarChart3, Bell, Shield, Award, MessageSquare, BookOpen } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3 },
@@ -13,4 +13,5 @@ const navigation = [
     href: '/admin/followups',
     icon: Bell,
   },
+  { name: 'Legal Coach', href: '/admin/legal-coach', icon: BookOpen },
 ]; 
