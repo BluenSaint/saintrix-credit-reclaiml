@@ -150,4 +150,52 @@ create policy "Client owns their data" on feedback
   using (client_id in (select id from clients where user_id = auth.uid()));
 create policy "Admin override" on feedback
   for all
-  using (auth.jwt() ->> 'role' = 'admin'); 
+  using (auth.jwt() ->> 'role' = 'admin');
+
+-- INDEX OPTIMIZATION
+create index if not exists idx_clients_user_id on clients (user_id);
+create index if not exists idx_disputes_user_id on disputes (client_id);
+create index if not exists idx_documents_user_id on documents (client_id);
+create index if not exists idx_referrals_user_id on referrals (client_id);
+create index if not exists idx_feedback_user_id on feedback (client_id);
+
+-- RLS POLICIES (SAFE, USER-SCOPED)
+-- 1. For all tables with a user_id field
+alter table clients enable row level security;
+create policy if not exists "User can select own client row" on clients for select using (auth.uid() = user_id);
+create policy if not exists "User can insert own client row" on clients for insert with check (auth.uid() = user_id);
+create policy if not exists "User can update own client row" on clients for update using (auth.uid() = user_id);
+create policy if not exists "User can delete own client row" on clients for delete using (auth.uid() = user_id);
+
+alter table disputes enable row level security;
+create policy if not exists "User can select own dispute" on disputes for select using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can insert own dispute" on disputes for insert with check (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can update own dispute" on disputes for update using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can delete own dispute" on disputes for delete using (client_id in (select id from clients where user_id = auth.uid()));
+
+alter table documents enable row level security;
+create policy if not exists "User can select own document" on documents for select using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can insert own document" on documents for insert with check (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can update own document" on documents for update using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can delete own document" on documents for delete using (client_id in (select id from clients where user_id = auth.uid()));
+
+alter table referrals enable row level security;
+create policy if not exists "User can select own referral" on referrals for select using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can insert own referral" on referrals for insert with check (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can update own referral" on referrals for update using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can delete own referral" on referrals for delete using (client_id in (select id from clients where user_id = auth.uid()));
+
+alter table feedback enable row level security;
+create policy if not exists "User can select own feedback" on feedback for select using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can insert own feedback" on feedback for insert with check (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can update own feedback" on feedback for update using (client_id in (select id from clients where user_id = auth.uid()));
+create policy if not exists "User can delete own feedback" on feedback for delete using (client_id in (select id from clients where user_id = auth.uid()));
+
+-- 2. Admins table
+alter table admins enable row level security;
+create policy if not exists "Admin can select self" on admins for select using (auth.uid() = id);
+create policy if not exists "Admin can insert self" on admins for insert with check (auth.uid() = id);
+
+-- 3. Settings table
+alter table settings enable row level security;
+create policy if not exists "Admin can access settings" on settings for all using (auth.uid() in (select id from admins)); 
