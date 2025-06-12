@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { toast } from 'sonner';
+import { DocumentPreview } from './DocumentPreview';
 
 interface DocumentUploaderProps {
   userId: string;
@@ -17,11 +18,13 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file);
     setIsProcessing(true);
     setProgress(0);
 
@@ -76,6 +79,15 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           </div>
         )}
 
+        {selectedFile && !isProcessing && (
+          <div className="mt-4">
+            <DocumentPreview
+              fileUrl={URL.createObjectURL(selectedFile)}
+              fileType={selectedFile.type}
+            />
+          </div>
+        )}
+
         {processedDocument && (
           <div className="mt-4 p-4 bg-gray-50 rounded-lg">
             <h4 className="font-medium">Document Classification Results</h4>
@@ -87,7 +99,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                 size="sm"
                 onClick={() => window.open(processedDocument.fileUrl, '_blank')}
               >
-                View Document
+                View Stored Document
               </Button>
             </div>
           </div>
