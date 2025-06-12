@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
-import { DisputeFollowupService } from '@/services/dispute-followup';
-import { format } from 'date-fns';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -12,13 +11,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import AdminGuard from '@/components/guards/AdminGuard';
-import { Mail, Phone, FileText, Clock, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { DisputeFollowupService } from '@/services/dispute-followup';
+import { AdminGuard } from '@/components/AdminGuard';
+import { Mail, Phone, FileText, Fax, Calendar, CheckCircle, XCircle, Clock, Search } from 'lucide-react';
 
-interface Followup {
+interface FollowupWithDetails {
   id: string;
-  type: string;
-  status: string;
+  type: 'email' | 'letter' | 'phone' | 'fax';
+  status: 'pending' | 'sent' | 'failed' | 'cancelled';
   scheduled_date: string;
   sent_date: string | null;
   recipient: string;
@@ -28,19 +35,21 @@ interface Followup {
   response_content: string | null;
   dispute: {
     id: string;
-    bureau: string;
-    status: string;
+    reference: string;
     client: {
       id: string;
-      full_name: string;
+      name: string;
       email: string;
     };
   };
 }
 
 export default function AdminFollowups() {
-  const [followups, setFollowups] = useState<Followup[]>([]);
+  const [followups, setFollowups] = useState<FollowupWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
     fetchFollowups();
@@ -50,48 +59,33 @@ export default function AdminFollowups() {
     try {
       const data = await DisputeFollowupService.getPendingFollowups();
       setFollowups(data);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      toast.error('Failed to fetch follow-ups');
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleUpdateStatus = async (id: string, status: 'sent' | 'failed' | 'cancelled') => {
     try {
       await DisputeFollowupService.updateFollowupStatus(id, status);
-      toast({
-        title: 'Success',
-        description: 'Status updated successfully',
-      });
+      toast.success('Status updated successfully');
       fetchFollowups();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      toast.error('Failed to update status');
+      console.error(error);
     }
   };
 
-  const handleCancelFollowup = async (id: string) => {
+  const handleCancel = async (id: string) => {
     try {
       await DisputeFollowupService.cancelFollowup(id);
-      toast({
-        title: 'Success',
-        description: 'Follow-up cancelled successfully',
-      });
+      toast.success('Follow-up cancelled successfully');
       fetchFollowups();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      toast.error('Failed to cancel follow-up');
+      console.error(error);
     }
   };
 
@@ -103,88 +97,179 @@ export default function AdminFollowups() {
         return <Phone className="h-4 w-4" />;
       case 'letter':
         return <FileText className="h-4 w-4" />;
+      case 'fax':
+        return <Fax className="h-4 w-4" />;
       default:
-        return <Clock className="h-4 w-4" />;
+        return null;
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'pending':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      case 'cancelled':
+        return <XCircle className="h-4 w-4 text-gray-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const filteredFollowups = followups.filter(followup => {
+    const matchesSearch = 
+      followup.dispute.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      followup.dispute.client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      followup.dispute.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      followup.recipient.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesType = !typeFilter || followup.type === typeFilter;
+    const matchesStatus = !statusFilter || followup.status === statusFilter;
+
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
   if (loading) {
-    return <div>Loading...</div>;
+    return <div>Loading follow-ups...</div>;
   }
 
   return (
     <AdminGuard>
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto py-6 space-y-6">
+        <h1 className="text-3xl font-bold">Dispute Follow-ups</h1>
+        
         <Card>
           <CardHeader>
-            <CardTitle>Pending Follow-ups</CardTitle>
-            <CardDescription>
-              Manage and track all pending dispute follow-ups
-            </CardDescription>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-1 gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by client name, email, or dispute reference..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="letter">Letter</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="fax">Fax</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Client</TableHead>
+                  <TableHead>Dispute</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Scheduled</TableHead>
                   <TableHead>Recipient</TableHead>
-                  <TableHead>Bureau</TableHead>
+                  <TableHead>Scheduled</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Response</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {followups.map((followup) => (
+                {filteredFollowups.map((followup) => (
                   <TableRow key={followup.id}>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{followup.dispute.client.full_name}</div>
-                        <div className="text-sm text-gray-500">{followup.dispute.client.email}</div>
-                      </div>
+                      <div className="font-medium">{followup.dispute.client.name}</div>
+                      <div className="text-sm text-muted-foreground">{followup.dispute.client.email}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
+                      <div className="font-medium">{followup.dispute.reference}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
                         {getTypeIcon(followup.type)}
                         <span className="capitalize">{followup.type}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {format(new Date(followup.scheduled_date), 'MMM d, yyyy h:mm a')}
-                    </TableCell>
                     <TableCell>{followup.recipient}</TableCell>
-                    <TableCell>{followup.dispute.bureau}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded text-sm ${
-                        followup.status === 'sent' ? 'bg-green-100 text-green-800' :
-                        followup.status === 'failed' ? 'bg-red-100 text-red-800' :
-                        followup.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {followup.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(followup.scheduled_date).toLocaleString()}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          onClick={() => handleUpdateStatus(followup.id, 'sent')}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Mark Sent
-                        </Button>
-                        <Button
-                          onClick={() => handleCancelFollowup(followup.id)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Cancel
-                        </Button>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(followup.status)}
+                        <span className="capitalize">{followup.status}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {followup.response_received ? (
+                        <div className="text-sm">
+                          <div className="font-medium">Received: {new Date(followup.response_date!).toLocaleString()}</div>
+                          <div className="text-muted-foreground">{followup.response_content}</div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">No response</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {followup.status === 'pending' && (
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUpdateStatus(followup.id, 'sent')}
+                          >
+                            Mark Sent
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUpdateStatus(followup.id, 'failed')}
+                          >
+                            Mark Failed
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancel(followup.id)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
+                {filteredFollowups.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      No follow-ups found
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

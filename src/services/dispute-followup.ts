@@ -1,18 +1,31 @@
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import type { Database } from '@/lib/supabase';
 
 type DisputeFollowup = Database['public']['Tables']['dispute_followups']['Row'];
 
 export class DisputeFollowupService {
-  static async scheduleFollowup(data: Omit<DisputeFollowup, 'id' | 'created_at' | 'updated_at'>): Promise<DisputeFollowup> {
-    const { data: followup, error } = await supabase
+  static async scheduleFollowup(
+    disputeId: string,
+    type: 'email' | 'letter' | 'phone' | 'fax',
+    scheduledDate: Date,
+    recipient: string,
+    content?: string
+  ): Promise<DisputeFollowup> {
+    const { data, error } = await supabase
       .from('dispute_followups')
-      .insert(data)
+      .insert({
+        dispute_id: disputeId,
+        type,
+        scheduled_date: scheduledDate.toISOString(),
+        recipient,
+        content,
+        status: 'pending'
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return followup;
+    return data;
   }
 
   static async getDisputeFollowups(disputeId: string): Promise<DisputeFollowup[]> {
@@ -26,20 +39,24 @@ export class DisputeFollowupService {
     return data;
   }
 
-  static async updateFollowupStatus(id: string, status: string, responseContent?: string): Promise<DisputeFollowup> {
+  static async updateFollowupStatus(
+    id: string,
+    status: 'pending' | 'sent' | 'failed' | 'cancelled',
+    responseContent?: string
+  ): Promise<DisputeFollowup> {
     const updateData: any = { status };
-    
+
     if (status === 'sent') {
       updateData.sent_date = new Date().toISOString();
     }
-    
+
     if (responseContent) {
+      updateData.response_content = responseContent;
       updateData.response_received = true;
       updateData.response_date = new Date().toISOString();
-      updateData.response_content = responseContent;
     }
 
-    const { data: followup, error } = await supabase
+    const { data, error } = await supabase
       .from('dispute_followups')
       .update(updateData)
       .eq('id', id)
@@ -47,18 +64,25 @@ export class DisputeFollowupService {
       .single();
 
     if (error) throw error;
-    return followup;
+    return data;
   }
 
-  static async getPendingFollowups(): Promise<DisputeFollowup[]> {
+  static async getPendingFollowups(): Promise<(DisputeFollowup & {
+    dispute: {
+      id: string;
+      client: {
+        id: string;
+        full_name: string;
+        email: string;
+      };
+    };
+  })[]> {
     const { data, error } = await supabase
       .from('dispute_followups')
       .select(`
         *,
         dispute:dispute_id (
           id,
-          bureau,
-          status,
           client:client_id (
             id,
             full_name,
@@ -86,7 +110,7 @@ export class DisputeFollowupService {
   }
 
   static async cancelFollowup(id: string): Promise<DisputeFollowup> {
-    const { data: followup, error } = await supabase
+    const { data, error } = await supabase
       .from('dispute_followups')
       .update({ status: 'cancelled' })
       .eq('id', id)
@@ -94,11 +118,14 @@ export class DisputeFollowupService {
       .single();
 
     if (error) throw error;
-    return followup;
+    return data;
   }
 
-  static async rescheduleFollowup(id: string, newDate: Date): Promise<DisputeFollowup> {
-    const { data: followup, error } = await supabase
+  static async rescheduleFollowup(
+    id: string,
+    newDate: Date
+  ): Promise<DisputeFollowup> {
+    const { data, error } = await supabase
       .from('dispute_followups')
       .update({
         scheduled_date: newDate.toISOString(),
@@ -109,6 +136,6 @@ export class DisputeFollowupService {
       .single();
 
     if (error) throw error;
-    return followup;
+    return data;
   }
 } 

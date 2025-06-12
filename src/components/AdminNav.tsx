@@ -8,4 +8,9 @@ const navigation = [
   { name: 'Notifications', href: '/admin/notifications', icon: Bell },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
   { name: 'Communications', href: '/admin/communications', icon: MessageSquare },
+  {
+    name: 'Follow-ups',
+    href: '/admin/followups',
+    icon: Bell,
+  },
 ]; 
