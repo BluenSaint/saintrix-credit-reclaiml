@@ -40,6 +40,8 @@ import { AIDashboardAssistant } from "@/components/AIDashboardAssistant";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import { ReferralSystem } from '@/components/ReferralSystem';
 import { CreditInsuranceManager } from '@/components/CreditInsuranceManager';
+import { CommunicationHub } from '@/components/CommunicationHub';
+import { DocumentManager } from '@/components/DocumentManager';
 
 interface DashboardData {
   client: any
@@ -439,48 +441,13 @@ const Dashboard = () => {
             </Card>
 
             {/* Documents Card */}
-            <Card className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <FileText className="h-6 w-6 text-purple-500" />
-                <h3 className="text-lg font-medium">Documents</h3>
-              </div>
-              {data?.documents && data.documents.length > 0 ? (
-                <div className="space-y-2">
-                  {data.documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                    >
-                      <span className="text-sm">{doc.type}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => window.open(doc.file_url, '_blank')}
-                      >
-                        View
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    onClick={() => router.push('/documents')}
-                    variant="outline"
-                    className="w-full mt-4"
-                  >
-                    Manage Documents
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-gray-500">No documents uploaded</p>
-                  <Button
-                    onClick={() => router.push('/documents')}
-                    variant="outline"
-                    className="w-full mt-4"
-                  >
-                    Upload Documents
-                  </Button>
-                </div>
-              )}
+            <Card className="col-span-2">
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DocumentManager clientId={user.id} />
+              </CardContent>
             </Card>
 
             {/* Disputes Card */}
@@ -529,6 +496,19 @@ const Dashboard = () => {
                 <h3 className="text-lg font-medium">Credit Insurance</h3>
               </div>
               <CreditInsuranceManager />
+            </Card>
+
+            {/* Communication Hub Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Messages
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CommunicationHub />
+              </CardContent>
             </Card>
           </div>
         </div>
