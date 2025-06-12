@@ -141,6 +141,38 @@ export interface Database {
           created_at?: string
         }
       }
+      admin_logs: {
+        Row: {
+          id: string
+          admin_id: string
+          action: string
+          target_user_id: string
+          timestamp: string
+          file_type: string | null
+          file_name: string | null
+          details: Json | null
+        }
+        Insert: {
+          id?: string
+          admin_id: string
+          action: string
+          target_user_id: string
+          timestamp?: string
+          file_type?: string | null
+          file_name?: string | null
+          details?: Json | null
+        }
+        Update: {
+          id?: string
+          admin_id?: string
+          action?: string
+          target_user_id?: string
+          timestamp?: string
+          file_type?: string | null
+          file_name?: string | null
+          details?: Json | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
