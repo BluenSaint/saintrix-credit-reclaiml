@@ -26,6 +26,10 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { generateLetter } from "@/utils/generateLetter";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -41,6 +45,18 @@ const Dashboard = () => {
     referralCode: ""
   });
   const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState("");
+  const [disputeForm, setDisputeForm] = useState({ bureau: "", reason: "" });
+  const [submittingDispute, setSubmittingDispute] = useState(false);
+  const [feedback, setFeedback] = useState({ message: "", rating: 5 });
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [generatingLetter, setGeneratingLetter] = useState(false);
+  const [letterPreview, setLetterPreview] = useState<string | null>(null);
+  const [showLetterModal, setShowLetterModal] = useState(false);
+  const [selectedDispute, setSelectedDispute] = useState<any>(null);
 
   const upcomingTasks = [
     {
@@ -65,6 +81,16 @@ const Dashboard = () => {
       daysLeft: 10
     }
   ];
+
+  // Fetch documents
+  const fetchDocuments = async (clientId: string) => {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    if (!error) setDocuments(data || []);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,7 +121,8 @@ const Dashboard = () => {
           .select("*", { count: "exact", head: true })
           .eq("referred_by", clientData.id);
         setReferralStats((prev) => ({ ...prev, totalReferred: totalReferred || 0, referralCode: clientData.referral_code || "" }));
-        // TODO: completedReferrals, freeMonthsEarned logic if available
+        // Documents
+        await fetchDocuments(clientData.id);
       } catch (err: any) {
         toast({ title: "Error loading dashboard", description: err.message, variant: "destructive" });
       } finally {
@@ -104,6 +131,110 @@ const Dashboard = () => {
     };
     fetchData();
   }, []);
+
+  // Document upload handler
+  const handleDocumentUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile || !docType || !client) return;
+    setUploading(true);
+    try {
+      const filePath = `${client.id}/${Date.now()}_${selectedFile.name}`;
+      const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, selectedFile);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("documents").getPublicUrl(filePath);
+      const { error: insertError } = await supabase.from("documents").insert([
+        { client_id: client.id, type: docType, file_url: publicUrl, created_at: new Date().toISOString() }
+      ]);
+      if (insertError) throw insertError;
+      toast({ title: "Document uploaded!" });
+      setSelectedFile(null);
+      setDocType("");
+      await fetchDocuments(client.id);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Dispute submission handler
+  const handleDisputeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disputeForm.bureau || !disputeForm.reason || !client) return;
+    setSubmittingDispute(true);
+    try {
+      const { error } = await supabase.from("disputes").insert([
+        { client_id: client.id, bureau: disputeForm.bureau, reason: disputeForm.reason, status: "draft", created_at: new Date().toISOString() }
+      ]);
+      if (error) throw error;
+      toast({ title: "Dispute submitted!" });
+      setDisputeForm({ bureau: "", reason: "" });
+      // Re-fetch disputes
+      const { data: disputesData } = await supabase
+        .from("disputes")
+        .select("*")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false });
+      setDisputes(disputesData || []);
+    } catch (err: any) {
+      toast({ title: "Submission failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmittingDispute(false);
+    }
+  };
+
+  // Feedback submission handler
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedback.message || !client) return;
+    setSubmittingFeedback(true);
+    try {
+      const { error } = await supabase.from("feedback").insert([
+        { client_id: client.id, message: feedback.message, rating: feedback.rating, created_at: new Date().toISOString() }
+      ]);
+      if (error) throw error;
+      toast({ title: "Feedback submitted!" });
+      setFeedback({ message: "", rating: 5 });
+    } catch (err: any) {
+      toast({ title: "Feedback failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  // Generate dispute letter handler
+  const handleGenerateLetter = async (dispute: any) => {
+    setGeneratingLetter(true);
+    setSelectedDispute(dispute);
+    try {
+      const letterContent = await generateLetter({
+        clientName: client.full_name,
+        itemName: dispute.item,
+        bureau: dispute.bureau,
+        violationType: dispute.reason,
+        evidence: dispute.evidence_url
+      });
+      // Save to letters table
+      const { error } = await supabase.from("letters").insert([
+        {
+          client_id: client.id,
+          content: letterContent,
+          bureau: dispute.bureau,
+          item_name: dispute.item,
+          created_at: new Date().toISOString(),
+          status: "generated"
+        }
+      ]);
+      if (error) throw error;
+      setLetterPreview(letterContent);
+      setShowLetterModal(true);
+      toast({ title: "Letter generated!" });
+    } catch (err: any) {
+      toast({ title: "Letter generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingLetter(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -246,6 +377,7 @@ const Dashboard = () => {
                       </div>
                       <Progress value={dispute.progress} className="h-2" />
                       <div className="text-xs text-gray-500 mt-1">{dispute.progress}% complete</div>
+                      <Button onClick={() => handleGenerateLetter(dispute)} disabled={generatingLetter}>Generate Dispute Letter</Button>
                     </div>
                   ))}
                 </div>
@@ -428,6 +560,24 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Letter Preview Modal */}
+      {showLetterModal && (
+        <Sheet open={showLetterModal} onOpenChange={setShowLetterModal}>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Letter Preview</SheetTitle>
+            </SheetHeader>
+            <SheetContent className="p-4">
+              {letterPreview && (
+                <div className="prose">
+                  {letterPreview}
+                </div>
+              )}
+            </SheetContent>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 };

@@ -37,9 +37,20 @@ const Auth = () => {
         email: formData.email,
         password: formData.password
       });
-      if (loginError || !data.user) throw loginError || new Error("Login failed");
-      // Fetch user role
+      if (loginError || !data.user) {
+        setError("Invalid email or password.");
+        toast({ title: "Login failed", description: loginError?.message || "Invalid credentials.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      // Confirm user_metadata.role exists
       const role = data.user.user_metadata?.role;
+      if (!role) {
+        setError("Account not fully set up. Please contact support.");
+        toast({ title: "Login failed", description: "Account missing role metadata.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
       if (role === "admin") {
         navigate("/admin");
       } else {
@@ -47,7 +58,7 @@ const Auth = () => {
       }
       toast({ title: "Signed in!", description: `Welcome back, ${formData.email}` });
     } catch (err: any) {
-      setError(err.message);
+      setError("Unexpected error during login.");
       toast({ title: "Login failed", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
@@ -80,11 +91,24 @@ const Auth = () => {
           }
         }
       });
-      if (signupError || !data.user) throw signupError || new Error("Signup failed");
+      if (signupError || !data.user) {
+        setError(signupError?.message || "Signup failed");
+        toast({ title: "Signup failed", description: signupError?.message || "Signup failed.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      // Confirm user_metadata.role exists
+      const role = data.user.user_metadata?.role;
+      if (!role) {
+        setError("Account not fully set up. Please contact support.");
+        toast({ title: "Signup failed", description: "Account missing role metadata.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
       toast({ title: "Account created!", description: "Please check your email to verify your account." });
       navigate("/intake");
     } catch (err: any) {
-      setError(err.message);
+      setError("Unexpected error during signup.");
       toast({ title: "Signup failed", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);

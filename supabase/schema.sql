@@ -10,7 +10,17 @@ create table clients (
   dob date not null,
   address text not null,
   ssn_last4 text not null,
-  created_at timestamp with time zone default now() not null
+  created_at timestamp with time zone default now() not null,
+  credit_insurance_enabled boolean default false not null
+);
+
+-- insurance_log for credit insurance activations
+drop table if exists insurance_log cascade;
+create table insurance_log (
+  id uuid primary key default uuid_generate_v4(),
+  client_id uuid references clients(id) not null,
+  enabled_by_admin_id uuid references auth.users(id) not null,
+  timestamp timestamp with time zone default now() not null
 );
 
 -- 2. disputes
