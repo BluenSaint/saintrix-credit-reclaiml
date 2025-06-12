@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthStore, isAdmin } from "@/lib/authStore";
+import { useNavigate } from "react-router-dom";
 
 const AdminRevenue = () => {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const [authChecked, setAuthChecked] = useState(false);
   const [subs, setSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
@@ -12,6 +17,24 @@ const AdminRevenue = () => {
     planBreakdown: {} as Record<string, number>,
     growth: 0
   });
+
+  useEffect(() => {
+    if (user === null) {
+      (async () => {
+        const { data: { user: supaUser } } = await supabase.auth.getUser();
+        if (!supaUser || !isAdmin(supaUser)) {
+          navigate("/auth");
+        } else {
+          useAuthStore.getState().setUser(supaUser);
+        }
+        setAuthChecked(true);
+      })();
+    } else if (!isAdmin(user)) {
+      navigate("/auth");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const fetchSubs = async () => {
@@ -38,6 +61,8 @@ const AdminRevenue = () => {
     };
     fetchSubs();
   }, []);
+
+  if (!authChecked) return <div className="min-h-screen flex items-center justify-center">Checking admin access...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

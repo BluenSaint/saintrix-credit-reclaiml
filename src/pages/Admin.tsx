@@ -11,6 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { autopilotService } from "@/services/autopilotService";
 import { AlertCircle, MailOpen, CheckCircle2, FileText, User, Bell } from "lucide-react";
 import axios from "axios";
+import { useAuthStore, isAdmin } from "@/lib/authStore";
+import { useNavigate } from "react-router-dom";
 
 const Admin = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,6 +27,30 @@ const Admin = () => {
   const [notifLoading, setNotifLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv'>('pdf');
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    if (user === null) {
+      // Try to fetch from Supabase if not in store
+      (async () => {
+        const { data: { user: supaUser } } = await supabase.auth.getUser();
+        if (!supaUser || !isAdmin(supaUser)) {
+          navigate("/auth");
+        } else {
+          useAuthStore.getState().setUser(supaUser);
+        }
+        setAuthChecked(true);
+      })();
+    } else if (!isAdmin(user)) {
+      navigate("/auth");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [user, navigate]);
+
+  if (!authChecked) return <div className="min-h-screen flex items-center justify-center">Checking admin access...</div>;
 
   // Fetch clients
   const fetchClients = async () => {

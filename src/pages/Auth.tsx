@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Shield, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import { useAuthStore, isAdmin } from "@/lib/authStore";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -25,6 +26,8 @@ const Auth = () => {
     accessCode: "",
     legacyCode: ""
   });
+
+  const setUser = useAuthStore((s) => s.setUser);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -67,7 +70,8 @@ const Auth = () => {
         setIsLoading(false);
         return;
       }
-      if (role === "admin") {
+      setUser(data.user);
+      if (isAdmin(data.user)) {
         navigate("/admin");
       } else {
         navigate("/dashboard");

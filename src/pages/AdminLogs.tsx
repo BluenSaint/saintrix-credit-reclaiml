@@ -8,6 +8,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { formatDistanceToNow, parseISO } from "date-fns";
+import { useAuthStore, isAdmin } from "@/lib/authStore";
+import { useNavigate } from "react-router-dom";
 
 const ACTION_LABELS: Record<string, string> = {
   bulk_approve: "Bulk Approve",
@@ -18,6 +20,9 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const AdminLogs = () => {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const [authChecked, setAuthChecked] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [admins, setAdmins] = useState<Record<string, any>>({});
   const [filterAction, setFilterAction] = useState("");
@@ -26,6 +31,24 @@ const AdminLogs = () => {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user === null) {
+      (async () => {
+        const { data: { user: supaUser } } = await supabase.auth.getUser();
+        if (!supaUser || !isAdmin(supaUser)) {
+          navigate("/auth");
+        } else {
+          useAuthStore.getState().setUser(supaUser);
+        }
+        setAuthChecked(true);
+      })();
+    } else if (!isAdmin(user)) {
+      navigate("/auth");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [user, navigate]);
 
   // Fetch logs and admin users
   useEffect(() => {
@@ -52,6 +75,8 @@ const AdminLogs = () => {
       adminEmail.toLowerCase().includes(search.toLowerCase())
     );
   });
+
+  if (!authChecked) return <div className="min-h-screen flex items-center justify-center">Checking admin access...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
