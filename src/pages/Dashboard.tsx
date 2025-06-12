@@ -22,16 +22,28 @@ import {
   LogOut,
   Star,
   Target,
-  Zap
+  Zap,
+  CreditCard,
+  User,
+  AlertCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useRouter } from 'next/router'
+import ClientGuard from '@/components/guards/ClientGuard'
+
+interface DashboardData {
+  client: any
+  creditReport: any
+  documents: any[]
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const router = useRouter();
   const [client, setClient] = useState(null);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
@@ -58,15 +70,16 @@ const Dashboard = () => {
   const [selectedDispute, setSelectedDispute] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   const fetchTasks = async (userId: string) => {
     setTasksLoading(true);
-    const { data, error } = await supabase
+    const { data: tasksData, error } = await supabase
       .from("tasks")
       .select("*")
       .eq("user_id", userId)
       .order("due_date", { ascending: true });
-    if (!error) setTasks(data || []);
+    if (!error) setTasks(tasksData || []);
     setTasksLoading(false);
   };
 
@@ -77,26 +90,30 @@ const Dashboard = () => {
 
   // Fetch documents
   const fetchDocuments = async (clientId: string) => {
-    const { data, error } = await supabase
+    const { data: docData, error } = await supabase
       .from("documents")
       .select("*")
       .eq("client_id", clientId)
       .order("created_at", { ascending: false });
-    if (!error) setDocuments(data || []);
+    if (!error) setDocuments(docData || []);
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) throw new Error("Not authenticated");
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('No user found');
+
+        // Fetch client data
         const { data: clientData, error: clientError } = await supabase
-          .from("clients")
-          .select("*")
-          .eq("user_id", user.id)
+          .from('clients')
+          .select('*')
+          .eq('user_id', user.id)
           .single();
-        if (clientError || !clientData) throw new Error("Client record not found");
+
+        if (clientError) throw clientError;
         setClient(clientData);
         setCurrentScore(clientData.current_score || null);
         setScoreChange(clientData.score_change || null);
@@ -118,13 +135,55 @@ const Dashboard = () => {
         await fetchDocuments(clientData.id);
         // Tasks
         await fetchTasks(user.id);
-      } catch (err: any) {
-        toast({ title: "Error loading dashboard", description: err.message, variant: "destructive" });
+
+        // Fetch latest credit report
+        const { data: creditData, error: creditError } = await supabase
+          .from('credit_reports')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (creditError && creditError.code !== 'PGRST116') throw creditError
+
+        setData({
+          client: clientData,
+          creditReport: creditData,
+          documents: documents
+        });
+      } catch (error) {
+        console.error('Dashboard data fetch error:', error);
+        toast.error('Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchDashboardData();
+
+    // Set up real-time subscription for credit reports
+    const creditReportSubscription = supabase
+      .channel('credit_reports')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'credit_reports',
+          filter: `user_id=eq.${supabase.auth.getUser().then(({ data }) => data.user?.id)}`
+        },
+        (payload) => {
+          setData(prev => prev ? {
+            ...prev,
+            creditReport: payload.new
+          } : null)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      creditReportSubscription.unsubscribe()
+    }
   }, []);
 
   // Document upload handler
@@ -267,339 +326,127 @@ const Dashboard = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              SAINTRIX
-            </span>
-            <div className="h-8 w-px bg-gray-300"></div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Welcome back, John</h1>
-              <p className="text-sm text-gray-500">Let's continue improving your credit</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm">
-              <Bell className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="sm">
-              <Settings className="w-4 h-4" />
-            </Button>
-            <Avatar>
-              <AvatarImage src="/placeholder-avatar.jpg" />
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="p-6">
-        {/* Autopilot Status Banner */}
-        <div className={`mb-6 p-4 rounded-lg border ${autopilotEnabled ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full ${autopilotEnabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div>
-                <h3 className="font-semibold text-gray-900">
-                  SAINTRIX Autopilot is {autopilotEnabled ? 'ON' : 'OFF'}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {autopilotEnabled 
-                    ? 'Your credit repair is running automatically' 
-                    : 'Your credit repair has been paused'
-                  }
-                </p>
+    <ClientGuard>
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Client Info Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <User className="h-6 w-6 text-blue-500" />
+                <h3 className="text-lg font-medium">Client Information</h3>
               </div>
-            </div>
-            <Button 
-              variant={autopilotEnabled ? "outline" : "default"}
-              className={autopilotEnabled ? "" : "btn-glossy text-white border-0"}
-              onClick={() => setAutopilotEnabled(!autopilotEnabled)}
-            >
-              {autopilotEnabled ? 'Pause' : 'Resume'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Main Grid */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column - Credit Score & Progress */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Credit Score Card */}
-            <Card className="relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500"></div>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Current Credit Score</CardTitle>
-                    <CardDescription>Updated 2 days ago</CardDescription>
-                  </div>
-                  <Badge className={scoreChange && scoreChange > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                    {scoreChange && scoreChange > 0 ? '+' : ''}{scoreChange} points
-                  </Badge>
+              {data?.client && (
+                <div className="space-y-2">
+                  <p><span className="font-medium">Name:</span> {data.client.full_name}</p>
+                  <p><span className="font-medium">DOB:</span> {new Date(data.client.dob).toLocaleDateString()}</p>
+                  <p><span className="font-medium">Address:</span> {data.client.address}</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center space-x-6">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-gray-900 animate-score-count">{currentScore}</div>
-                    <div className="text-sm text-gray-500">FICO Score</div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div 
-                        className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-                        style={{ width: `${(currentScore && currentScore / 850) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>300</span>
-                      <span>Fair</span>
-                      <span>850</span>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline"
-                    onClick={() => navigate("/letters")}
-                    className="flex items-center space-x-2"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    <span>View Details</span>
-                  </Button>
-                </div>
-              </CardContent>
+              )}
             </Card>
 
-            {/* Active Disputes */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Active Disputes</CardTitle>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate("/letters")}
+            {/* Credit Report Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <CreditCard className="h-6 w-6 text-green-500" />
+                <h3 className="text-lg font-medium">Credit Report</h3>
+              </div>
+              {data?.creditReport ? (
+                <div className="space-y-2">
+                  <p><span className="font-medium">Score:</span> {data.creditReport.score}</p>
+                  <p><span className="font-medium">Last Updated:</span> {new Date(data.creditReport.synced_at).toLocaleDateString()}</p>
+                  <Button
+                    onClick={() => router.push('/credit-report')}
+                    variant="outline"
+                    className="w-full mt-4"
                   >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Generate Letters
+                    View Full Report
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {disputes.map((dispute) => (
-                    <div key={dispute.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">{dispute.item}</h4>
-                        <Badge variant={dispute.status === 'Completed' ? 'default' : 'secondary'}>
-                          {dispute.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                        <span>Bureau: {dispute.bureau}</span>
-                        <span>Filed: {dispute.date}</span>
-                      </div>
-                      <Progress value={dispute.progress} className="h-2" />
-                      <div className="text-xs text-gray-500 mt-1">{dispute.progress}% complete</div>
-                      <Button onClick={() => handleGenerateLetter(dispute)} disabled={generatingLetter}>Generate Dispute Letter</Button>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-500">No credit report available</p>
+                  <Button
+                    onClick={() => router.push('/credit-sync')}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    Sync Credit Report
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            {/* Documents Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <FileText className="h-6 w-6 text-purple-500" />
+                <h3 className="text-lg font-medium">Documents</h3>
+              </div>
+              {data?.documents && data.documents.length > 0 ? (
+                <div className="space-y-2">
+                  {data.documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                    >
+                      <span className="text-sm">{doc.type}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(doc.file_url, '_blank')}
+                      >
+                        View
+                      </Button>
                     </div>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Progress Timeline */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Progress Timeline</CardTitle>
-                <CardDescription>Your credit improvement journey</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">Profile Setup Complete</h4>
-                      <p className="text-sm text-gray-500">Documents verified and account activated</p>
-                    </div>
-                    <span className="text-sm text-gray-400">Jan 1</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">First Dispute Round Sent</h4>
-                      <p className="text-sm text-gray-500">3 items disputed across all bureaus</p>
-                    </div>
-                    <span className="text-sm text-gray-400">Jan 5</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Star className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">First Item Removed</h4>
-                      <p className="text-sm text-gray-500">+23 point score increase</p>
-                    </div>
-                    <span className="text-sm text-gray-400">Jan 20</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column - Tasks & Tools */}
-          <div className="space-y-6">
-            {/* Smart To-Do List */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Target className="w-5 h-5 mr-2" />
-                  Smart To-Do List
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {tasksLoading ? (
-                  <div className="text-gray-500">Loading tasks...</div>
-                ) : (
-                  <div className="space-y-3">
-                    {tasks.length === 0 ? (
-                      <div className="text-gray-400">No tasks yet.</div>
-                    ) : (
-                      tasks.map((task) => (
-                        <div key={task.id} className={`p-3 border rounded-lg ${task.completed ? 'bg-green-50' : ''}`}> 
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-medium text-sm line-through={task.completed}">{task.title}</h4>
-                            <Badge 
-                              variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'secondary' : 'outline'}
-                              className="text-xs"
-                            >
-                              {task.due_date ? `${Math.max(0, Math.ceil((new Date(task.due_date).getTime() - Date.now()) / (1000*60*60*24)))}d` : ''}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-gray-500">Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A'}</p>
-                          {!task.completed && (
-                            <Button size="sm" variant="outline" className="mt-2" onClick={() => handleCompleteTask(task.id)}>
-                              Mark Complete
-                            </Button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* AI Assistant */}
-            <Card className="border-2 border-dashed border-purple-200">
-              <CardHeader>
-                <CardTitle className="flex items-center text-purple-600">
-                  <MessageSquare className="w-5 h-5 mr-2" />
-                  AI Credit Assistant
-                </CardTitle>
-                <CardDescription>Coming Soon</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4">
-                    <Zap className="w-8 h-8 text-purple-600" />
-                  </div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Get instant answers about your credit repair progress
-                  </p>
-                  <Button variant="outline" className="text-purple-600 border-purple-200">
-                    Join Waitlist
+                  <Button
+                    onClick={() => router.push('/documents')}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    Manage Documents
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Referral System */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="w-5 h-5 mr-2" />
-                  Referral Program
-                </CardTitle>
-                <CardDescription>Invite friends, earn free months</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <div className="text-2xl font-bold text-purple-600">{referralStats.totalReferred}</div>
-                      <div className="text-xs text-gray-500">Total Referred</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-green-600">{referralStats.completedReferrals}</div>
-                      <div className="text-xs text-gray-500">Completed</div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Your Referral Code</div>
-                    <div className="font-mono text-sm">{referralStats.referralCode}</div>
-                  </div>
-                  
-                  <Progress value={(referralStats.completedReferrals / 3) * 100} className="h-2" />
-                  <p className="text-xs text-gray-600">
-                    {3 - referralStats.completedReferrals} more referrals for a free month!
-                  </p>
-                  
-                  <Button className="w-full btn-glossy text-white border-0">
-                    Share Referral Link
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-500">No documents uploaded</p>
+                  <Button
+                    onClick={() => router.push('/documents')}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    Upload Documents
                   </Button>
                 </div>
-              </CardContent>
+              )}
             </Card>
 
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => navigate("/letters")}
+            {/* Disputes Card */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <AlertCircle className="h-6 w-6 text-red-500" />
+                <h3 className="text-lg font-medium">Active Disputes</h3>
+              </div>
+              <div className="text-center py-4">
+                <p className="text-gray-500">No active disputes</p>
+                <Button
+                  onClick={() => router.push('/disputes/new')}
+                  variant="outline"
+                  className="w-full mt-4"
                 >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Generate Dispute Letters
+                  Start New Dispute
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Documents
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                >
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  View Credit Report
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Contact Support
-                </Button>
-              </CardContent>
+              </div>
             </Card>
           </div>
         </div>
@@ -622,7 +469,7 @@ const Dashboard = () => {
           </SheetContent>
         </Sheet>
       )}
-    </div>
+    </ClientGuard>
   );
 };
 

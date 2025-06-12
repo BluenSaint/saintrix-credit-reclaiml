@@ -20,7 +20,7 @@ export interface Database {
           address: string
           ssn_last4: string
           created_at: string
-          credit_insurance_enabled: boolean
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -30,7 +30,7 @@ export interface Database {
           address: string
           ssn_last4: string
           created_at?: string
-          credit_insurance_enabled?: boolean
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -40,7 +40,7 @@ export interface Database {
           address?: string
           ssn_last4?: string
           created_at?: string
-          credit_insurance_enabled?: boolean
+          updated_at?: string
         }
       }
       disputes: {
@@ -146,31 +146,45 @@ export interface Database {
           id: string
           admin_id: string
           action: string
-          target_user_id: string
-          timestamp: string
-          file_type: string | null
-          file_name: string | null
           details: Json | null
+          timestamp: string
+          client_id: string | null
         }
         Insert: {
           id?: string
           admin_id: string
           action: string
-          target_user_id: string
-          timestamp?: string
-          file_type?: string | null
-          file_name?: string | null
           details?: Json | null
+          timestamp?: string
+          client_id?: string | null
         }
         Update: {
           id?: string
           admin_id?: string
           action?: string
-          target_user_id?: string
-          timestamp?: string
-          file_type?: string | null
-          file_name?: string | null
           details?: Json | null
+          timestamp?: string
+          client_id?: string | null
+        }
+      }
+      admins: {
+        Row: {
+          id: string
+          role: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          role?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          role?: string
+          created_at?: string
+          updated_at?: string
         }
       }
     }
