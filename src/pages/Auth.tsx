@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Shield, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -30,41 +32,63 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
-    // Simulate auth process
-    setTimeout(() => {
-      // Demo logic - in real app this would be Supabase auth
-      if (formData.email === "admin@saintrix.com") {
+    try {
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      });
+      if (loginError || !data.user) throw loginError || new Error("Login failed");
+      // Fetch user role
+      const role = data.user.user_metadata?.role;
+      if (role === "admin") {
         navigate("/admin");
       } else {
         navigate("/dashboard");
       }
+      toast({ title: "Signed in!", description: `Welcome back, ${formData.email}` });
+    } catch (err: any) {
+      setError(err.message);
+      toast({ title: "Login failed", description: err.message, variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords don't match");
       setIsLoading(false);
       return;
     }
-
     if (!formData.agreeToTerms) {
       setError("Please agree to the terms and conditions");
       setIsLoading(false);
       return;
     }
-
-    // Simulate signup process
-    setTimeout(() => {
+    try {
+      const { data, error: signupError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            role: "client"
+          }
+        }
+      });
+      if (signupError || !data.user) throw signupError || new Error("Signup failed");
+      toast({ title: "Account created!", description: "Please check your email to verify your account." });
       navigate("/intake");
+    } catch (err: any) {
+      setError(err.message);
+      toast({ title: "Signup failed", description: err.message, variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (

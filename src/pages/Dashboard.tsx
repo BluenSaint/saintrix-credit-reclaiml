@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,39 +24,23 @@ import {
   Target,
   Zap
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [currentScore, setCurrentScore] = useState(647);
-  const [scoreChange, setScoreChange] = useState(+23);
+  const [client, setClient] = useState(null);
+  const [currentScore, setCurrentScore] = useState<number | null>(null);
+  const [scoreChange, setScoreChange] = useState<number | null>(null);
   const [autopilotEnabled, setAutopilotEnabled] = useState(true);
-
-  const disputes = [
-    {
-      id: 1,
-      item: "Late Payment - Capital One",
-      status: "Under Review",
-      date: "2024-01-15",
-      bureau: "Experian",
-      progress: 60
-    },
-    {
-      id: 2,
-      item: "Collection Account - Midland Funding",
-      status: "Investigating",
-      date: "2024-01-10",
-      bureau: "Equifax",
-      progress: 30
-    },
-    {
-      id: 3,
-      item: "Charge-off - Discover Card",
-      status: "Completed",
-      date: "2023-12-20",
-      bureau: "TransUnion",
-      progress: 100
-    }
-  ];
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [referralStats, setReferralStats] = useState({
+    totalReferred: 0,
+    completedReferrals: 0,
+    freeMonthsEarned: 0,
+    referralCode: ""
+  });
+  const [loading, setLoading] = useState(true);
 
   const upcomingTasks = [
     {
@@ -82,12 +66,44 @@ const Dashboard = () => {
     }
   ];
 
-  const referralStats = {
-    totalReferred: 2,
-    completedReferrals: 1,
-    freeMonthsEarned: 0,
-    referralCode: "SAINT2024JD"
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error("Not authenticated");
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+        if (clientError || !clientData) throw new Error("Client record not found");
+        setClient(clientData);
+        setCurrentScore(clientData.current_score || null);
+        setScoreChange(clientData.score_change || null);
+        // Disputes
+        const { data: disputesData, error: disputesError } = await supabase
+          .from("disputes")
+          .select("*")
+          .eq("client_id", clientData.id)
+          .order("created_at", { ascending: false });
+        if (disputesError) throw disputesError;
+        setDisputes(disputesData || []);
+        // Referrals
+        const { count: totalReferred } = await supabase
+          .from("referrals")
+          .select("*", { count: "exact", head: true })
+          .eq("referred_by", clientData.id);
+        setReferralStats((prev) => ({ ...prev, totalReferred: totalReferred || 0, referralCode: clientData.referral_code || "" }));
+        // TODO: completedReferrals, freeMonthsEarned logic if available
+      } catch (err: any) {
+        toast({ title: "Error loading dashboard", description: err.message, variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,8 +179,8 @@ const Dashboard = () => {
                     <CardTitle className="text-lg">Current Credit Score</CardTitle>
                     <CardDescription>Updated 2 days ago</CardDescription>
                   </div>
-                  <Badge className={scoreChange > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                    {scoreChange > 0 ? '+' : ''}{scoreChange} points
+                  <Badge className={scoreChange && scoreChange > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                    {scoreChange && scoreChange > 0 ? '+' : ''}{scoreChange} points
                   </Badge>
                 </div>
               </CardHeader>
@@ -178,7 +194,7 @@ const Dashboard = () => {
                     <div className="w-full bg-gray-200 rounded-full h-3">
                       <div 
                         className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-                        style={{ width: `${(currentScore / 850) * 100}%` }}
+                        style={{ width: `${(currentScore && currentScore / 850) * 100}%` }}
                       ></div>
                     </div>
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
