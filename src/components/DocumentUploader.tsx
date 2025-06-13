@@ -1,110 +1,207 @@
-import React, { useState } from 'react';
-import { DocumentProcessor, ProcessedDocument } from '../services/documentProcessor';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Progress } from './ui/progress';
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { supabase } from '../lib/supabase';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { Upload, File, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { DocumentPreview } from './DocumentPreview';
+
+export type DocumentType = 'ID' | 'PROOF_OF_ADDRESS' | 'CREDIT_REPORT' | 'DISPUTE_LETTER' | 'OTHER';
 
 interface DocumentUploaderProps {
   userId: string;
-  onDocumentProcessed: (document: ProcessedDocument) => void;
+  onUploadComplete?: (fileUrl: string, type: DocumentType) => void;
+  allowedTypes?: DocumentType[];
+  maxSize?: number; // in bytes
+  showPreview?: boolean;
 }
 
-export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
+export default function DocumentUploader({
   userId,
-  onDocumentProcessed,
-}) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  onUploadComplete,
+  allowedTypes = ['ID', 'PROOF_OF_ADDRESS', 'CREDIT_REPORT', 'DISPUTE_LETTER', 'OTHER'],
+  maxSize = 10 * 1024 * 1024, // 10MB default
+  showPreview = true
+}: DocumentUploaderProps) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; type: DocumentType; url: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-    setIsProcessing(true);
-    setProgress(0);
-
-    try {
-      const processor = DocumentProcessor.getInstance();
-      const result = await processor.processDocument(file, userId);
-      
-      setProcessedDocument(result);
-      onDocumentProcessed(result);
-      
-      toast.success('Document processed successfully!');
-    } catch (error) {
-      console.error('Error processing document:', error);
-      toast.error('Failed to process document. Please try again.');
-    } finally {
-      setIsProcessing(false);
-      setProgress(100);
+  const detectDocumentType = async (file: File): Promise<DocumentType> => {
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.includes('id') || fileName.includes('license') || fileName.includes('passport')) {
+      return 'ID';
     }
+    if (fileName.includes('bill') || fileName.includes('statement') || fileName.includes('utility')) {
+      return 'PROOF_OF_ADDRESS';
+    }
+    if (fileName.includes('report') || fileName.includes('credit') || fileName.includes('score')) {
+      return 'CREDIT_REPORT';
+    }
+    if (fileName.includes('dispute') || fileName.includes('letter')) {
+      return 'DISPUTE_LETTER';
+    }
+    return 'OTHER';
   };
 
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    setIsUploading(true);
+    setError(null);
+    setUploadProgress(0);
+    
+    try {
+      for (const file of acceptedFiles) {
+        // Validate file size
+        if (file.size > maxSize) {
+          throw new Error(`File size must be less than ${maxSize / (1024 * 1024)}MB`);
+        }
+
+        // Set preview if enabled
+        if (showPreview) {
+          setPreviewFile(file);
+        }
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${userId}/${Date.now()}.${fileExt}`;
+        
+        // Upload to Supabase Storage with progress tracking
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Detect document type
+        const docType = await detectDocumentType(file);
+
+        // Validate document type
+        if (!allowedTypes.includes(docType)) {
+          throw new Error(`Document type ${docType} is not allowed`);
+        }
+
+        // Save document record
+        const { data: docData, error: docError } = await supabase
+          .from('documents')
+          .insert({
+            client_id: userId,
+            type: docType,
+            file_url: uploadData.path,
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+            status: 'pending'
+          });
+
+        if (docError) throw docError;
+
+        // Update local state
+        setUploadedFiles(prev => [...prev, {
+          name: file.name,
+          type: docType,
+          url: uploadData.path
+        }]);
+
+        // Notify parent component
+        onUploadComplete?.(uploadData.path, docType);
+
+        setUploadProgress(100);
+      }
+
+      toast.success('Documents uploaded successfully');
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to upload documents');
+      toast.error('Failed to upload documents');
+    } finally {
+      setIsUploading(false);
+      setPreviewFile(null);
+    }
+  }, [userId, onUploadComplete, allowedTypes, maxSize, showPreview]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/*': ['.png', '.jpg', '.jpeg']
+    },
+    maxSize,
+    multiple: true
+  });
+
   return (
-    <Card className="p-6 space-y-4">
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold">Upload Document</h3>
-        <p className="text-sm text-gray-500">
-          Upload your ID, proof of address, or credit report
-        </p>
-      </div>
+    <div className="space-y-4">
+      <Card className="p-6">
+        <div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+            ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
+        >
+          <input {...getInputProps()} />
+          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-600">
+            {isDragActive
+              ? 'Drop the files here...'
+              : 'Drag & drop files here, or click to select files'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Supported formats: PDF, PNG, JPG (Max size: {maxSize / (1024 * 1024)}MB)
+          </p>
+        </div>
+      </Card>
 
-      <div className="space-y-4">
-        <label htmlFor="document-upload" className="block text-sm font-medium text-gray-700">
-          Choose a file to upload
-        </label>
-        <input
-          id="document-upload"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          onChange={handleFileUpload}
-          disabled={isProcessing}
-          className="block w-full text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-violet-50 file:text-violet-700
-            hover:file:bg-violet-100"
-        />
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {isProcessing && (
-          <div className="space-y-2">
-            <Progress value={progress} className="w-full" />
-            <p className="text-sm text-gray-500">Processing document...</p>
-          </div>
-        )}
+      {isUploading && (
+        <div className="space-y-2">
+          <Progress value={uploadProgress} className="w-full" />
+          <p className="text-sm text-gray-600 text-center">Uploading...</p>
+        </div>
+      )}
 
-        {selectedFile && !isProcessing && (
-          <div className="mt-4">
-            <DocumentPreview
-              fileUrl={URL.createObjectURL(selectedFile)}
-              fileType={selectedFile.type}
-            />
-          </div>
-        )}
+      {showPreview && previewFile && (
+        <div className="mt-4">
+          <DocumentPreview
+            fileUrl={URL.createObjectURL(previewFile)}
+            fileType={previewFile.type}
+          />
+        </div>
+      )}
 
-        {processedDocument && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium">Document Classification Results</h4>
-            <div className="mt-2 space-y-2">
-              <p><span className="font-medium">Type:</span> {processedDocument.type}</p>
-              <p><span className="font-medium">Upload Date:</span> {new Date(processedDocument.uploadDate).toLocaleDateString()}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(processedDocument.fileUrl, '_blank')}
-              >
-                View Stored Document
-              </Button>
+      {uploadedFiles.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-medium">Uploaded Files</h3>
+          {uploadedFiles.map((file, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            >
+              <div className="flex items-center space-x-3">
+                <File className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="text-sm font-medium">{file.name}</p>
+                  <p className="text-xs text-gray-500">Type: {file.type}</p>
+                </div>
+              </div>
+              <CheckCircle className="h-5 w-5 text-green-500" />
             </div>
-          </div>
-        )}
-      </div>
-    </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
-}; 
+} 

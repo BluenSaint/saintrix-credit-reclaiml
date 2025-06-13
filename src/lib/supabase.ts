@@ -15,6 +15,7 @@ if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable')
 }
 
+// Create a single instance of the Supabase client
 export const supabase = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -27,19 +28,13 @@ export const supabase = createClient<Database>(
   }
 )
 
-// Helper function to check if user is admin
-export const isAdmin = (user: any) => {
-  return user?.user_metadata?.role === 'admin'
-}
+// Helper functions for role checking
+export const isAdmin = (user: any) => user?.user_metadata?.role === 'admin'
+export const isClient = (user: any) => user?.user_metadata?.role === 'client'
 
-// Helper function to check if user is client
-export const isClient = (user: any) => {
-  return user?.user_metadata?.role === 'client'
-}
-
-// Helper function to get user role
-export const getUserRole = (user: any) => {
-  return user?.user_metadata?.role
+// Type guard for user roles
+export const getUserRole = (user: any): 'admin' | 'client' | null => {
+  return user?.user_metadata?.role || null
 }
 
 // Helper function to check if user is approved (for legacy clients)

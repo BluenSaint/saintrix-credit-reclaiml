@@ -7,38 +7,27 @@ import { DisputesPanel } from './components/admin/DisputesPanel';
 import { LogsPanel } from './components/admin/LogsPanel';
 import { RevenuePanel } from './components/admin/RevenuePanel';
 import Dashboard from './components/Dashboard';
-import { SignupFlow } from './components/signup/SignupFlow';
+import Signup from './pages/signup';
 import { Login } from './components/Login';
 import LandingPage from './pages/LandingPage';
 import { Toaster } from 'sonner';
+import { AuthGuard } from './middleware/auth';
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   requireAdmin?: boolean;
-}> = ({ children, requireAdmin = false }) => {
-  const { user, loading, isAdmin } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (!requireAdmin && isAdmin) {
-    return <Navigate to="/admin/users" replace />;
-  }
-
-  return <>{children}</>;
+  requireClient?: boolean;
+  requireApproved?: boolean;
+}> = ({ children, requireAdmin = false, requireClient = false, requireApproved = false }) => {
+  return (
+    <AuthGuard
+      requireAdmin={requireAdmin}
+      requireClient={requireClient}
+      requireApproved={requireApproved}
+    >
+      {children}
+    </AuthGuard>
+  );
 };
 
 export const App: React.FC = () => {
@@ -49,7 +38,8 @@ export const App: React.FC = () => {
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignupFlow />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/pending-approval" element={<PendingApproval />} />
         
         {/* Admin Routes */}
         <Route
@@ -67,11 +57,11 @@ export const App: React.FC = () => {
           <Route path="revenue" element={<RevenuePanel />} />
         </Route>
 
-        {/* User Routes */}
+        {/* Client Routes */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireClient requireApproved>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -81,6 +71,24 @@ export const App: React.FC = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
+  );
+};
+
+// Pending Approval Page Component
+const PendingApproval: React.FC = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Account Pending Approval
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Your account is being reviewed by our team. We'll notify you once it's approved.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

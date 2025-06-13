@@ -1,231 +1,324 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
-import DocumentUploader from '@/components/upload/DocumentUploader'
-import CreditReportSync from '@/components/credit/CreditReportSync'
-
-type SignupStep = 'personal' | 'documents' | 'credit' | 'complete'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function Signup() {
-  const [step, setStep] = useState<SignupStep>('personal')
+  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    fullName: '',
-    dob: '',
-    address: '',
-    ssnLast4: ''
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    agreeToTerms: false,
+    accessCode: '',
+    legacyCode: ''
   })
 
-  const handlePersonalSubmit = async (e: React.FormEvent) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }))
+  }
+
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
+      // Validate form
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Passwords do not match')
+      }
+      if (!formData.agreeToTerms) {
+        throw new Error('Please agree to the terms and conditions')
+      }
+
+      // Determine role and approval status
+      const isAdmin = formData.accessCode === 'SAINTRIX_ADMIN_MASTER'
+      const isLegacyClient = formData.legacyCode === 'LEGACY2024'
+
       // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error: signupError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        options: {
+          data: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            role: isAdmin ? 'admin' : 'client',
+            access_code: formData.accessCode || null,
+            legacy_access_code: isLegacyClient ? formData.legacyCode : null,
+            approved: isLegacyClient ? false : true
+          }
+        }
       })
 
-      if (authError) throw authError
+      if (signupError) throw signupError
+      if (!data.user) throw new Error('No user data returned')
 
-      // Create client record
-      const { error: clientError } = await supabase
-        .from('clients')
-        .insert({
-          user_id: authData.user?.id,
-          full_name: formData.fullName,
-          dob: formData.dob,
-          address: formData.address,
-          ssn_last4: formData.ssnLast4
+      // Create appropriate profile
+      if (isAdmin) {
+        const { error: adminError } = await supabase
+          .from('admins')
+          .insert({
+            id: data.user.id,
+            role: 'admin'
+          })
+        if (adminError) throw adminError
+      } else {
+        const { error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            user_id: data.user.id,
+            full_name: `${formData.firstName} ${formData.lastName}`
+          })
+        if (clientError) throw clientError
+      }
+
+      // Handle legacy client notification
+      if (isLegacyClient) {
+        await supabase.from('admin_notifications').insert({
+          type: 'legacy_signup',
+          message: `Legacy Signup: ${formData.firstName} ${formData.lastName}`,
+          user_id: data.user.id
         })
-
-      if (clientError) throw clientError
-
-      setStep('documents')
-      toast.success('Account created successfully')
-    } catch (error) {
-      console.error('Signup error:', error)
-      toast.error('Failed to create account')
+        toast.success('Signup successful! Please check your email and wait for admin approval.')
+        navigate('/pending-approval')
+      } else {
+        toast.success('Account created! Please check your email to verify your account.')
+        navigate('/login')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Signup failed')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDocumentUpload = () => {
-    setStep('credit')
-  }
-
-  const handleCreditSync = () => {
-    setStep('complete')
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-2xl mx-auto px-4">
-        <Card className="p-8">
-          <div className="space-y-6">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold">Create Your Account</h1>
-              <p className="text-gray-600 mt-2">
-                {step === 'personal' && 'Enter your personal information'}
-                {step === 'documents' && 'Upload required documents'}
-                {step === 'credit' && 'Sync your credit report'}
-                {step === 'complete' && 'Setup complete!'}
-              </p>
-            </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Create your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <a href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            sign in to your existing account
+          </a>
+        </p>
+      </div>
 
-            {step === 'personal' && (
-              <form onSubmit={handlePersonalSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Email
-                  </label>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <Card className="py-8 px-4 sm:px-10">
+          <Tabs defaultValue="client" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="client">Client</TabsTrigger>
+              <TabsTrigger value="admin">Admin</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="client">
+              <form onSubmit={handleSignup} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
                   <Input
+                    id="email"
+                    name="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      email: e.target.value
-                    }))}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Password
-                  </label>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
                   <Input
+                    id="password"
+                    name="password"
                     type="password"
                     value={formData.password}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      password: e.target.value
-                    }))}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Full Name
-                  </label>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
-                    type="text"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      fullName: e.target.value
-                    }))}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Date of Birth
-                  </label>
+                <div className="space-y-2">
+                  <Label htmlFor="legacyCode">Legacy Access Code (Optional)</Label>
                   <Input
-                    type="date"
-                    value={formData.dob}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      dob: e.target.value
-                    }))}
-                    required
+                    id="legacyCode"
+                    name="legacyCode"
+                    value={formData.legacyCode}
+                    onChange={handleInputChange}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Address
-                  </label>
-                  <Input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      address: e.target.value
-                    }))}
-                    required
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="agreeToTerms"
+                    name="agreeToTerms"
+                    checked={formData.agreeToTerms}
+                    onCheckedChange={(checked) => 
+                      setFormData(prev => ({ ...prev, agreeToTerms: checked as boolean }))
+                    }
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Last 4 digits of SSN
-                  </label>
-                  <Input
-                    type="text"
-                    maxLength={4}
-                    value={formData.ssnLast4}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      ssnLast4: e.target.value
-                    }))}
-                    required
-                  />
+                  <Label htmlFor="agreeToTerms" className="text-sm">
+                    I agree to the terms and conditions
+                  </Label>
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={isLoading}
                   className="w-full"
+                  disabled={isLoading}
                 >
-                  {isLoading ? 'Creating Account...' : 'Continue'}
+                  {isLoading ? 'Creating account...' : 'Sign up'}
                 </Button>
               </form>
-            )}
+            </TabsContent>
 
-            {step === 'documents' && (
-              <DocumentUploader
-                userId={formData.email}
-                onUploadComplete={handleDocumentUpload}
-              />
-            )}
-
-            {step === 'credit' && (
-              <CreditReportSync
-                userId={formData.email}
-                onSyncComplete={handleCreditSync}
-              />
-            )}
-
-            {step === 'complete' && (
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                  <svg
-                    className="w-8 h-8 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+            <TabsContent value="admin">
+              <form onSubmit={handleSignup} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      required
                     />
-                  </svg>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
                 </div>
-                <h2 className="text-xl font-semibold">Setup Complete!</h2>
-                <p className="text-gray-600">
-                  Your account has been created and is ready to use.
-                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="accessCode">Admin Access Code</Label>
+                  <Input
+                    id="accessCode"
+                    name="accessCode"
+                    value={formData.accessCode}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="agreeToTerms"
+                    name="agreeToTerms"
+                    checked={formData.agreeToTerms}
+                    onCheckedChange={(checked) => 
+                      setFormData(prev => ({ ...prev, agreeToTerms: checked as boolean }))
+                    }
+                  />
+                  <Label htmlFor="agreeToTerms" className="text-sm">
+                    I agree to the terms and conditions
+                  </Label>
+                </div>
+
                 <Button
+                  type="submit"
                   className="w-full"
+                  disabled={isLoading}
                 >
-                  Go to Dashboard
+                  {isLoading ? 'Creating account...' : 'Sign up as Admin'}
                 </Button>
-              </div>
-            )}
-          </div>
+              </form>
+            </TabsContent>
+          </Tabs>
         </Card>
       </div>
     </div>

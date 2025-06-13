@@ -1,22 +1,37 @@
-import { supabase } from '@/lib/supabase';
-import type { Database } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
+import type { DocumentType } from '@/components/DocumentUploader';
 
-type Document = Database['public']['Tables']['documents']['Row'];
+export interface Document {
+  id: string;
+  client_id: string;
+  type: DocumentType;
+  file_url: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  status: 'pending' | 'processed' | 'error';
+  classification?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export class DocumentService {
   static async uploadDocument(
     clientId: string,
     file: File,
-    type: string
+    type: DocumentType
   ): Promise<Document> {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${file.name}`;
-    const filePath = `documents/${clientId}/${fileName}`;
+    const fileName = `${clientId}/${Date.now()}.${fileExt}`;
+    const filePath = `documents/${fileName}`;
 
     // Upload file to storage
     const { error: uploadError } = await supabase.storage
       .from('documents')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
     if (uploadError) throw uploadError;
 
@@ -42,9 +57,6 @@ export class DocumentService {
 
     if (insertError) throw insertError;
 
-    // Trigger OCR and classification (simulated)
-    this.processDocument(document.id);
-
     return document;
   }
 
@@ -59,96 +71,54 @@ export class DocumentService {
     return data;
   }
 
-  static async getAllDocuments(): Promise<Document[]> {
+  static async getDocument(id: string): Promise<Document> {
     const { data, error } = await supabase
       .from('documents')
-      .select(`
-        *,
-        client:client_id (
-          id,
-          full_name,
-          email
-        )
-      `)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  }
-
-  static async deleteDocument(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-  }
-
-  static async updateDocumentType(id: string, type: string): Promise<Document> {
-    const { data, error } = await supabase
-      .from('documents')
-      .update({ type })
+      .select('*')
       .eq('id', id)
-      .select()
       .single();
 
     if (error) throw error;
     return data;
   }
 
-  private static async processDocument(documentId: string): Promise<void> {
-    // Simulate OCR and classification processing
-    setTimeout(async () => {
-      try {
-        const { data: document } = await supabase
-          .from('documents')
-          .select('*')
-          .eq('id', documentId)
-          .single();
+  static async deleteDocument(id: string): Promise<void> {
+    // Get document first to get the file path
+    const document = await this.getDocument(id);
 
-        if (!document) return;
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('documents')
+      .remove([document.file_url]);
 
-        // Simulate OCR text extraction
-        const ocrText = "Sample OCR text extracted from document...";
-        
-        // Simulate document classification
-        const classification = this.classifyDocument(document.type, ocrText);
+    if (storageError) throw storageError;
 
-        // Update document with OCR and classification results
-        await supabase
-          .from('documents')
-          .update({
-            ocr_text: ocrText,
-            classification,
-            status: 'processed'
-          })
-          .eq('id', documentId);
-      } catch (error) {
-        console.error('Document processing error:', error);
-        await supabase
-          .from('documents')
-          .update({ status: 'error' })
-          .eq('id', documentId);
-      }
-    }, 2000); // Simulate 2-second processing time
+    // Delete from database
+    const { error: dbError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', id);
+
+    if (dbError) throw dbError;
   }
 
-  private static classifyDocument(type: string, ocrText: string): string {
-    // Simple classification logic based on document type and OCR text
-    const typeLower = type.toLowerCase();
-    const textLower = ocrText.toLowerCase();
+  static async updateDocumentStatus(
+    id: string,
+    status: Document['status'],
+    classification?: string
+  ): Promise<Document> {
+    const { data, error } = await supabase
+      .from('documents')
+      .update({
+        status,
+        classification,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
-    if (typeLower.includes('id') || textLower.includes('identification')) {
-      return 'identification';
-    } else if (typeLower.includes('address') || textLower.includes('proof of address')) {
-      return 'proof_of_address';
-    } else if (typeLower.includes('credit') || textLower.includes('credit report')) {
-      return 'credit_report';
-    } else if (typeLower.includes('dispute') || textLower.includes('dispute letter')) {
-      return 'dispute_letter';
-    } else {
-      return 'other';
-    }
+    if (error) throw error;
+    return data;
   }
 } 

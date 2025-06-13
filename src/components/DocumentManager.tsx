@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   Table,
@@ -19,27 +17,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { DocumentService } from '@/services/document';
+import { DocumentService, Document } from '@/services/document';
 import { FileIcon, TrashIcon, EyeIcon, DownloadIcon } from 'lucide-react';
-
-interface Document {
-  id: string;
-  type: string;
-  file_url: string;
-  file_name: string;
-  file_size: number;
-  mime_type: string;
-  status: string;
-  classification: string;
-  created_at: string;
-}
+import DocumentUploader from './DocumentUploader';
 
 interface DocumentManagerProps {
   clientId: string;
@@ -50,8 +30,6 @@ export function DocumentManager({ clientId, isAdmin = false }: DocumentManagerPr
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState('');
 
   useEffect(() => {
     fetchDocuments();
@@ -69,34 +47,9 @@ export function DocumentManager({ clientId, isAdmin = false }: DocumentManagerPr
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast.error('File size must be less than 10MB');
-        return;
-      }
-      setSelectedFile(file);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile || !documentType) {
-      toast.error('Please select a file and document type');
-      return;
-    }
-
-    try {
-      await DocumentService.uploadDocument(clientId, selectedFile, documentType);
-      toast.success('Document uploaded successfully');
-      setUploadDialogOpen(false);
-      setSelectedFile(null);
-      setDocumentType('');
-      fetchDocuments();
-    } catch (error) {
-      toast.error('Failed to upload document');
-      console.error(error);
-    }
+  const handleUploadComplete = async (fileUrl: string, type: string) => {
+    await fetchDocuments();
+    setUploadDialogOpen(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -149,35 +102,11 @@ export function DocumentManager({ clientId, isAdmin = false }: DocumentManagerPr
             <DialogHeader>
               <DialogTitle>Upload New Document</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="document-type">Document Type</Label>
-                <Select value={documentType} onValueChange={setDocumentType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select document type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="identification">Identification</SelectItem>
-                    <SelectItem value="proof_of_address">Proof of Address</SelectItem>
-                    <SelectItem value="credit_report">Credit Report</SelectItem>
-                    <SelectItem value="dispute_letter">Dispute Letter</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="file">File</Label>
-                <Input
-                  id="file"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.jpg,.jpeg,.png"
-                />
-              </div>
-              <Button onClick={handleUpload} disabled={!selectedFile || !documentType}>
-                Upload
-              </Button>
-            </div>
+            <DocumentUploader
+              userId={clientId}
+              onUploadComplete={handleUploadComplete}
+              showPreview={true}
+            />
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -232,13 +161,6 @@ export function DocumentManager({ clientId, isAdmin = false }: DocumentManagerPr
                 </TableCell>
               </TableRow>
             ))}
-            {documents.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No documents uploaded yet
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </CardContent>

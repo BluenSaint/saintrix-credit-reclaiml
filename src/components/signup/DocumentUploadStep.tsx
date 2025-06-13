@@ -1,12 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DocumentUploader } from '../DocumentUploader';
-import { useDocumentUpload } from '../../hooks/useDocumentUpload';
+import DocumentUploader from '../DocumentUploader';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import type { DocumentType } from '../DocumentUploader';
 
 interface DocumentUploadStepProps {
   userId: string;
@@ -18,21 +18,41 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
   onComplete,
 }) => {
   const navigate = useNavigate();
-  const {
-    uploadState,
-    isLoading,
-    error,
-    uploadDocument,
-    isIntakeComplete,
-    getMissingDocuments,
-    fetchExistingDocuments,
-  } = useDocumentUpload(userId);
+  const [uploadedDocs, setUploadedDocs] = useState<Record<DocumentType, boolean>>({
+    ID: false,
+    PROOF_OF_ADDRESS: false,
+    CREDIT_REPORT: false,
+    DISPUTE_LETTER: false,
+    OTHER: false
+  });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchExistingDocuments();
-  }, [fetchExistingDocuments]);
+  }, []);
 
-  const handleDocumentProcessed = async (document: any) => {
+  const fetchExistingDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('type')
+        .eq('client_id', userId);
+
+      if (error) throw error;
+
+      const newState = { ...uploadedDocs };
+      data.forEach((doc: { type: DocumentType }) => {
+        newState[doc.type] = true;
+      });
+      setUploadedDocs(newState);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch documents');
+    }
+  };
+
+  const handleUploadComplete = async (fileUrl: string, type: DocumentType) => {
+    setUploadedDocs(prev => ({ ...prev, [type]: true }));
+
     if (isIntakeComplete()) {
       // Update user's intake status
       const { error: updateError } = await supabase
@@ -47,6 +67,18 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
 
       onComplete();
     }
+  };
+
+  const isIntakeComplete = () => {
+    return uploadedDocs.ID && uploadedDocs.PROOF_OF_ADDRESS && uploadedDocs.CREDIT_REPORT;
+  };
+
+  const getMissingDocuments = () => {
+    const missing: string[] = [];
+    if (!uploadedDocs.ID) missing.push('ID');
+    if (!uploadedDocs.PROOF_OF_ADDRESS) missing.push('Proof of Address');
+    if (!uploadedDocs.CREDIT_REPORT) missing.push('Credit Report');
+    return missing;
   };
 
   const missingDocuments = getMissingDocuments();
@@ -69,18 +101,14 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
       )}
 
       <div className="grid gap-6">
-        {['ID', 'Proof of Address', 'Credit Report'].map((docType) => {
-          const isUploaded = uploadState[
-            docType === 'ID' ? 'id' :
-            docType === 'Proof of Address' ? 'proofOfAddress' :
-            'creditReport'
-          ];
+        {['ID', 'PROOF_OF_ADDRESS', 'CREDIT_REPORT'].map((docType) => {
+          const isUploaded = uploadedDocs[docType as DocumentType];
 
           return (
             <Card key={docType} className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-semibold">{docType}</h3>
+                  <h3 className="font-semibold">{docType.replace('_', ' ')}</h3>
                   <p className="text-sm text-gray-500">
                     {isUploaded ? 'Document uploaded' : 'Required for intake'}
                   </p>
@@ -93,20 +121,10 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
               {!isUploaded && (
                 <DocumentUploader
                   userId={userId}
-                  onDocumentProcessed={handleDocumentProcessed}
+                  onUploadComplete={handleUploadComplete}
+                  allowedTypes={[docType as DocumentType]}
+                  showPreview={true}
                 />
-              )}
-
-              {isUploaded && (
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(isUploaded.fileUrl, '_blank')}
-                  >
-                    View Document
-                  </Button>
-                </div>
               )}
             </Card>
           );
@@ -123,7 +141,7 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
 
         <Button
           onClick={() => navigate('/signup/sync-credit')}
-          disabled={!isIntakeComplete() || isLoading}
+          disabled={!isIntakeComplete()}
         >
           Continue to Credit Sync
         </Button>
