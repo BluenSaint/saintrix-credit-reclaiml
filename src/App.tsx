@@ -6,7 +6,7 @@ import { UserManagement } from './components/admin/UserManagement';
 import { DisputesPanel } from './components/admin/DisputesPanel';
 import { LogsPanel } from './components/admin/LogsPanel';
 import { RevenuePanel } from './components/admin/RevenuePanel';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './components/Dashboard';
 import { SignupFlow } from './components/signup/SignupFlow';
 import { Login } from './components/Login';
 
@@ -81,3 +81,5 @@ export const App: React.FC = () => {
     </Router>
   );
 };
+
+export default App;

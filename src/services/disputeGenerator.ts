@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from 'openai';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 interface DisputeItem {
@@ -23,13 +23,12 @@ interface GeneratedDispute {
 
 export class DisputeGenerator {
   private static instance: DisputeGenerator;
-  private openai: OpenAIApi;
+  private openai: OpenAI;
 
   private constructor() {
-    const configuration = new Configuration({
+    this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    this.openai = new OpenAIApi(configuration);
   }
 
   public static getInstance(): DisputeGenerator {
@@ -55,7 +54,7 @@ export class DisputeGenerator {
     5. Be concise but thorough`;
 
     try {
-      const completion = await this.openai.createChatCompletion({
+      const completion = await this.openai.chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -69,7 +68,7 @@ export class DisputeGenerator {
         ],
       });
 
-      return completion.data.choices[0].message?.content || '';
+      return completion.choices[0].message?.content || '';
     } catch (error) {
       console.error('Error generating dispute letter:', error);
       throw new Error('Failed to generate dispute letter');
