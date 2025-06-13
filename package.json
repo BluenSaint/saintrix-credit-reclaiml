@@ -9,9 +9,11 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "verify": "ts-node scripts/verify-setup.ts",
-    "verify:prod": "NODE_ENV=production ts-node scripts/verify-setup.ts",
-    "deploy": "ts-node scripts/deploy.ts"
+    "verify": "tsx scripts/verify-setup.ts",
+    "verify:prod": "NODE_ENV=production tsx scripts/verify-setup.ts",
+    "deploy": "tsx scripts/deploy.ts",
+    "create-test-users": "tsx scripts/create-test-users.ts",
+    "verify-admin": "tsx scripts/verify-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -53,6 +55,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.3.0",
     "input-otp": "^1.2.4",
     "json2csv": "^6.0.0-alpha.2",
@@ -91,6 +94,7 @@
     "lovable-tagger": "^1.1.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
+    "tsx": "^4.20.2",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1"

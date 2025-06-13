@@ -202,7 +202,7 @@ export interface Database {
   }
 }
 
-export const supabase = createBrowserClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
+export const supabase = createBrowserClient(
+  'https://aqweyygjshulavavmiyx.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxd2V5eWdqc2h1bGF2YXZtaXl4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTY1OTk3MiwiZXhwIjoyMDY1MjM1OTcyfQ.ngAQE2HX2tWsUZs7ZzOu7Cj33knkJUt4vkvQco3RFK0'
 ) 
