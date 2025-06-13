@@ -1,26 +1,30 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import type { AuthUser } from '@/hooks/useAuth'
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { AuthUser } from "@/hooks/useAuth";
 
-interface AuthState {
-  user: AuthUser | null
-  setUser: (user: AuthUser | null) => void
-  clearUser: () => void
-}
+type AuthState = {
+  user: any;
+  role: "admin" | "client" | null;
+  session: any;
+  setAuth: (user: any, session: any, role: "admin" | "client") => void;
+  clearAuth: () => void;
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      setUser: (user) => set({ user }),
-      clearUser: () => set({ user: null })
+      session: null,
+      role: null,
+      setAuth: (user, session, role) => set({ user, session, role }),
+      clearAuth: () => set({ user: null, session: null, role: null }),
     }),
     {
-      name: 'auth-storage'
+      name: "auth-storage",
     }
   )
-)
+);
 
 export function isAdmin(user: AuthUser | null | undefined): boolean {
   return !!user && user.user_metadata?.role === "admin";
-} 
+}
