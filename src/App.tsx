@@ -9,17 +9,21 @@ import { RevenuePanel } from './components/admin/RevenuePanel';
 import Dashboard from './components/Dashboard';
 import { SignupFlow } from './components/signup/SignupFlow';
 import { Login } from './components/Login';
-import { useAuthMiddleware } from './middleware';
+import LandingPage from './pages/LandingPage';
+import { Toaster } from 'sonner';
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   requireAdmin?: boolean;
 }> = ({ children, requireAdmin = false }) => {
   const { user, loading, isAdmin } = useAuth();
-  useAuthMiddleware();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -40,8 +44,12 @@ const ProtectedRoute: React.FC<{
 export const App: React.FC = () => {
   return (
     <Router>
+      <Toaster position="top-right" />
       <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignupFlow />} />
         
         {/* Admin Routes */}
         <Route
@@ -69,9 +77,8 @@ export const App: React.FC = () => {
           }
         />
 
-        <Route path="/signup" element={<SignupFlow />} />
-
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Catch all route */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

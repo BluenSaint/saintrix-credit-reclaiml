@@ -13,84 +13,78 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          full_name: string
-          dob: string
-          address: string
-          ssn_last4: string
+          name: string | null
           created_at: string
-          credit_insurance_enabled: boolean
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          full_name: string
-          dob: string
-          address: string
-          ssn_last4: string
+          name?: string | null
           created_at?: string
-          credit_insurance_enabled?: boolean
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          full_name?: string
-          dob?: string
-          address?: string
-          ssn_last4?: string
+          name?: string | null
           created_at?: string
-          credit_insurance_enabled?: boolean
+          updated_at?: string
         }
       }
       disputes: {
         Row: {
           id: string
           client_id: string
-          bureau: 'Experian' | 'Equifax' | 'TransUnion'
-          reason: string
-          status: 'draft' | 'sent' | 'resolved'
-          evidence_url: string | null
+          bureau: string
+          status: string
+          reason: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           client_id: string
-          bureau: 'Experian' | 'Equifax' | 'TransUnion'
-          reason: string
-          status: 'draft' | 'sent' | 'resolved'
-          evidence_url?: string | null
+          bureau: string
+          status?: string
+          reason?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           client_id?: string
-          bureau?: 'Experian' | 'Equifax' | 'TransUnion'
-          reason?: string
-          status?: 'draft' | 'sent' | 'resolved'
-          evidence_url?: string | null
+          bureau?: string
+          status?: string
+          reason?: string | null
           created_at?: string
+          updated_at?: string
         }
       }
       documents: {
         Row: {
           id: string
           client_id: string
+          url: string
           type: string
-          file_url: string
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           client_id: string
+          url: string
           type: string
-          file_url: string
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           client_id?: string
+          url?: string
           type?: string
-          file_url?: string
           created_at?: string
+          updated_at?: string
         }
       }
       referrals: {
