@@ -1,22 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { SentimentDetectionService } from '@/services/sentimentDetection';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { supabase } from '../../lib/supabase';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { formatDistanceToNow } from 'date-fns';
 
 interface AtRiskUser {
   id: string;
@@ -25,33 +13,61 @@ interface AtRiskUser {
     email: string;
     created_at: string;
   };
+  flag_type: string;
   reason: string;
   created_at: string;
+  status: string;
 }
 
-export function AtRiskUsers() {
+export const AtRiskUsers: React.FC = () => {
   const [users, setUsers] = useState<AtRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAtRiskUsers();
+    fetchAtRiskUsers();
   }, []);
 
-  const loadAtRiskUsers = async () => {
+  const fetchAtRiskUsers = async () => {
     try {
-      const atRiskUsers = await SentimentDetectionService.getAtRiskUsers();
-      setUsers(atRiskUsers);
+      const { data, error } = await supabase
+        .from('user_flags')
+        .select(`
+          id,
+          flag_type,
+          reason,
+          created_at,
+          status,
+          user:user_id (
+            id,
+            email,
+            created_at
+          )
+        `)
+        .eq('flag_type', 'at_risk')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error) {
-      console.error('Error loading at-risk users:', error);
+      console.error('Error fetching at-risk users:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResolve = async (flagId: string, resolution: 'resolved' | 'false_positive') => {
+  const handleResolveFlag = async (flagId: string, resolution: 'resolved' | 'false_positive') => {
     try {
-      await SentimentDetectionService.resolveFlag(flagId, resolution);
-      await loadAtRiskUsers(); // Reload the list
+      const { error } = await supabase
+        .from('user_flags')
+        .update({
+          status: resolution,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq('id', flagId);
+
+      if (error) throw error;
+      await fetchAtRiskUsers();
     } catch (error) {
       console.error('Error resolving flag:', error);
     }
@@ -64,51 +80,42 @@ export function AtRiskUsers() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>At-Risk Users</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>At-Risk Users</span>
+          <Badge variant="destructive">{users.length}</Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
-              <TableHead>Flagged At</TableHead>
               <TableHead>Reason</TableHead>
+              <TableHead>Flagged</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.map((user) => (
               <TableRow key={user.id}>
-                <TableCell>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Badge variant="destructive">🔴 At Risk</Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{user.reason}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="ml-2">{user.user.email}</div>
-                </TableCell>
-                <TableCell>
-                  {new Date(user.created_at).toLocaleDateString()}
-                </TableCell>
+                <TableCell>{user.user.email}</TableCell>
                 <TableCell>{user.reason}</TableCell>
+                <TableCell>
+                  {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleResolve(user.id, 'resolved')}
+                      onClick={() => handleResolveFlag(user.id, 'resolved')}
                     >
-                      Mark Resolved
+                      Resolve
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleResolve(user.id, 'false_positive')}
+                      onClick={() => handleResolveFlag(user.id, 'false_positive')}
                     >
                       False Positive
                     </Button>
@@ -118,7 +125,7 @@ export function AtRiskUsers() {
             ))}
             {users.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center">
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
                   No at-risk users found
                 </TableCell>
               </TableRow>
@@ -128,4 +135,4 @@ export function AtRiskUsers() {
       </CardContent>
     </Card>
   );
-} 
+}; 

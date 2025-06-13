@@ -1,69 +1,69 @@
-import { supabase } from '@/integrations/supabase/client';
-import { SentimentDetectionService } from '@/services/sentimentDetection';
+import { supabase } from '../lib/supabase';
+import { SentimentDetectionService } from '../services/sentimentDetection';
 
 export async function checkUserSentiment() {
   try {
-    // Check for inactive users (3+ days)
+    // Check for inactive users (no activity in 3+ days)
     const { data: inactiveUsers } = await supabase
-      .from('clients')
+      .from('user_activity')
       .select('user_id')
       .lt('last_activity', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
 
     for (const user of inactiveUsers || []) {
-      await SentimentDetectionService.logSentimentTrigger({
-        type: 'inactivity',
-        userId: user.user_id,
-        details: 'User inactive for 3+ days',
-      });
+      await SentimentDetectionService.getInstance().logSentimentTrigger(
+        user.user_id,
+        'inactivity',
+        'User has been inactive for 3+ days'
+      );
     }
 
-    // Check for multiple support contacts (2+ times)
+    // Check for users with multiple support contacts
     const { data: supportContacts } = await supabase
-      .from('messages')
-      .select('sender_id, count')
-      .eq('sender_type', 'client')
+      .from('support_tickets')
+      .select('user_id, count')
       .gte('count', 2)
-      .group('sender_id');
+      .lt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     for (const contact of supportContacts || []) {
-      await SentimentDetectionService.logSentimentTrigger({
-        type: 'support_contact',
-        userId: contact.sender_id,
-        details: 'Multiple support contacts made',
-      });
+      await SentimentDetectionService.getInstance().logSentimentTrigger(
+        contact.user_id,
+        'support_contact',
+        'User has submitted multiple support tickets'
+      );
     }
 
-    // Check for missing documents (5+ days)
+    // Check for users with missing documents
     const { data: missingDocs } = await supabase
       .from('documents')
-      .select('client_id')
-      .is('file_url', null)
+      .select('user_id')
+      .is('status', null)
       .lt('created_at', new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString());
 
     for (const doc of missingDocs || []) {
-      await SentimentDetectionService.logSentimentTrigger({
-        type: 'missing_docs',
-        userId: doc.client_id,
-        details: 'Documents missing for 5+ days',
-      });
+      await SentimentDetectionService.getInstance().logSentimentTrigger(
+        doc.user_id,
+        'missing_docs',
+        'User has not uploaded required documents'
+      );
     }
 
     // Check for unopened dispute letters
     const { data: unopenedLetters } = await supabase
       .from('disputes')
       .select('user_id')
-      .eq('status', 'sent')
-      .is('opened_at', null)
+      .eq('status', 'pending')
       .lt('created_at', new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
 
     for (const letter of unopenedLetters || []) {
-      await SentimentDetectionService.logSentimentTrigger({
-        type: 'unopened_letters',
-        userId: letter.user_id,
-        details: 'Dispute letters not opened/downloaded',
-      });
+      await SentimentDetectionService.getInstance().logSentimentTrigger(
+        letter.user_id,
+        'unopened_letters',
+        'User has not opened generated dispute letters'
+      );
     }
+
+    console.log('Sentiment check completed successfully');
   } catch (error) {
-    console.error('Error in sentiment check job:', error);
+    console.error('Error in sentiment check:', error);
   }
 } 
