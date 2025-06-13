@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify": "ts-node scripts/verify-setup.ts",
+    "verify:prod": "NODE_ENV=production ts-node scripts/verify-setup.ts",
+    "deploy": "ts-node scripts/deploy.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
