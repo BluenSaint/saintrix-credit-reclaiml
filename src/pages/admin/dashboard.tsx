@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { DisputeMetrics } from '@/components/admin/DisputeMetrics'
 import { DisputePrioritization } from '@/components/admin/DisputePrioritization'
+import { AtRiskUsers } from '@/components/admin/AtRiskUsers'
 
 interface AdminStats {
   totalClients: number
@@ -200,6 +201,7 @@ export default function AdminDashboard() {
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
               <TabsTrigger value="prioritization">Prioritization</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="at-risk">At-Risk Users</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -340,6 +342,10 @@ export default function AdminDashboard() {
                   </TableBody>
                 </Table>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="at-risk">
+              <AtRiskUsers />
             </TabsContent>
           </Tabs>
 
