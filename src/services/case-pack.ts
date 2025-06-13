@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import JSZip from 'jszip';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import type { Database } from '@/types/supabase';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Document = Database['public']['Tables']['documents']['Row'];
@@ -171,5 +171,71 @@ export class CasePackGenerator {
     });
 
     return pdfDoc.save();
+  }
+}
+
+export async function generateCasePackForClient(userId: string) {
+  try {
+    // Get session and verify admin role
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      throw new Error('Unauthorized');
+    }
+
+    // Fetch client data
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (clientError || !client) {
+      throw new Error('Client not found');
+    }
+
+    // Fetch related data
+    const { data: documents } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('client_id', client.id);
+
+    const { data: disputes } = await supabase
+      .from('disputes')
+      .select('*')
+      .eq('client_id', client.id);
+
+    const { data: creditReports } = await supabase
+      .from('credit_reports')
+      .select('*')
+      .eq('user_id', userId);
+
+    // Generate case pack
+    const casePackGenerator = new CasePackGenerator(
+      client,
+      documents || [],
+      disputes || [],
+      creditReports || []
+    );
+
+    const casePackBlob = await casePackGenerator.generateCasePack();
+
+    // Log the export action
+    await supabase.from('admin_logs').insert({
+      admin_id: session.user.id,
+      action: 'export_case_pack',
+      target_user_id: userId,
+      timestamp: new Date().toISOString(),
+      details: {
+        client_id: client.id,
+        documents_count: documents?.length || 0,
+        disputes_count: disputes?.length || 0,
+        credit_reports_count: creditReports?.length || 0
+      }
+    });
+
+    return casePackBlob;
+  } catch (error: any) {
+    console.error('Case pack generation error:', error);
+    throw error;
   }
 } 
