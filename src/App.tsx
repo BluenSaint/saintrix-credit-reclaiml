@@ -9,12 +9,14 @@ import { RevenuePanel } from './components/admin/RevenuePanel';
 import Dashboard from './components/Dashboard';
 import { SignupFlow } from './components/signup/SignupFlow';
 import { Login } from './components/Login';
+import { useAuthMiddleware } from './middleware';
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   requireAdmin?: boolean;
 }> = ({ children, requireAdmin = false }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
+  useAuthMiddleware();
 
   if (loading) {
     return <div>Loading...</div>;
@@ -24,11 +26,11 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && user.role !== 'admin') {
+  if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (!requireAdmin && user.role === 'admin') {
+  if (!requireAdmin && isAdmin) {
     return <Navigate to="/admin/users" replace />;
   }
 
@@ -67,14 +69,7 @@ export const App: React.FC = () => {
           }
         />
 
-        <Route
-          path="/signup/*"
-          element={
-            <ProtectedRoute>
-              <SignupFlow />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/signup" element={<SignupFlow />} />
 
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>

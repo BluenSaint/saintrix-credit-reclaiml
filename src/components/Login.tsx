@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
-const Login = () => {
+export const Login = () => {
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -88,6 +88,4 @@ const Login = () => {
       </Card>
     </div>
   );
-};
-
-export default Login; 
+}; 

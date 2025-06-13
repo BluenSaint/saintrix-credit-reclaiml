@@ -214,6 +214,38 @@ export interface Database {
           created_at?: string
         }
       }
+      credit_reports: {
+        Row: {
+          id: string
+          client_id: string
+          bureau: 'Experian' | 'Equifax' | 'TransUnion'
+          report_date: string
+          score: number
+          items: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          bureau: 'Experian' | 'Equifax' | 'TransUnion'
+          report_date: string
+          score: number
+          items: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          bureau?: 'Experian' | 'Equifax' | 'TransUnion'
+          report_date?: string
+          score?: number
+          items?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

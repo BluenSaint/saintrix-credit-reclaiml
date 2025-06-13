@@ -1,52 +1,42 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { toast } from 'sonner'
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+export const useAuthMiddleware = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { user, loading, isAdmin } = useAuth()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  useEffect(() => {
+    if (!loading) {
+      const path = location.pathname
 
-  // Handle authentication
-  if (!session) {
-    // Redirect to login if accessing protected routes
-    if (req.nextUrl.pathname.startsWith('/admin') || 
-        req.nextUrl.pathname.startsWith('/dashboard')) {
-      const redirectUrl = new URL('/login', req.url);
-      redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
+      // Handle authentication
+      if (!user) {
+        if (path.startsWith('/admin') || path.startsWith('/dashboard')) {
+          toast.error('Please log in to access this page')
+          navigate('/login', { state: { from: path } })
+          return
+        }
+      }
+
+      // Handle role-based access
+      if (path.startsWith('/admin')) {
+        if (!isAdmin) {
+          toast.error('Admin access required')
+          navigate('/dashboard')
+          return
+        }
+      }
+
+      if (path.startsWith('/dashboard')) {
+        if (isAdmin) {
+          toast.error('Client access required')
+          navigate('/admin')
+          return
+        }
+      }
     }
-    return res;
-  }
-
-  // Handle role-based access
-  const { data: { user } } = await supabase.auth.getUser();
-  const isAdmin = user?.user_metadata?.role === 'admin';
-
-  // Admin routes protection
-  if (req.nextUrl.pathname.startsWith('/admin')) {
-    if (!isAdmin) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-  }
-
-  // Client routes protection
-  if (req.nextUrl.pathname.startsWith('/dashboard')) {
-    if (isAdmin) {
-      return NextResponse.redirect(new URL('/admin', req.url));
-    }
-  }
-
-  return res;
-}
-
-export const config = {
-  matcher: [
-    '/admin/:path*',
-    '/dashboard/:path*',
-    '/login',
-  ],
-}; 
+  }, [user, loading, isAdmin, location.pathname, navigate])
+} 
