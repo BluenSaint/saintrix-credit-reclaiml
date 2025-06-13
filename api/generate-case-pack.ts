@@ -1,7 +1,22 @@
+type Request = {
+  method: string;
+  body: {
+    userId: string;
+  };
+};
+
+type Response = {
+  status: (code: number) => {
+    json: (data: any) => void;
+    send: (data: any) => void;
+  };
+  setHeader: (name: string, value: string) => void;
+};
+
 import { supabase } from '../src/lib/supabase';
 import { CasePackGenerator } from '../src/services/case-pack';
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: Request, res: Response) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
