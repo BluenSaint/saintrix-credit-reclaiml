@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from './database.types';
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing required Supabase environment variables');
+  throw new Error("Missing required Supabase environment variables");
 }
 
 // Create a single instance of the Supabase client
@@ -18,26 +18,13 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Helper functions for role checking with proper type safety
-export const isAdmin = (user: { user_metadata?: { role?: string } } | null): boolean =>
-  user?.user_metadata?.role === 'admin';
-
-export const isClient = (user: { user_metadata?: { role?: string } } | null): boolean =>
-  user?.user_metadata?.role === 'client';
-
-// Type guard for user roles
-export const getUserRole = (
-  user: { user_metadata?: { role?: string } } | null
-): 'admin' | 'client' | null => {
-  return (user?.user_metadata?.role as 'admin' | 'client' | null) || null;
-};
-
-// Helper function to check if user is approved
-export const isApproved = (user: { user_metadata?: { approved?: boolean } } | null): boolean => {
-  return user?.user_metadata?.approved !== false;
-};
-
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export interface Database {
   public: {
@@ -78,27 +65,27 @@ export interface Database {
         Row: {
           id: string;
           client_id: string;
-          bureau: 'Experian' | 'Equifax' | 'TransUnion';
+          bureau: "Experian" | "Equifax" | "TransUnion";
           reason: string;
-          status: 'draft' | 'sent' | 'resolved';
+          status: "draft" | "sent" | "resolved";
           evidence_url: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           client_id: string;
-          bureau: 'Experian' | 'Equifax' | 'TransUnion';
+          bureau: "Experian" | "Equifax" | "TransUnion";
           reason: string;
-          status: 'draft' | 'sent' | 'resolved';
+          status: "draft" | "sent" | "resolved";
           evidence_url?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           client_id?: string;
-          bureau?: 'Experian' | 'Equifax' | 'TransUnion';
+          bureau?: "Experian" | "Equifax" | "TransUnion";
           reason?: string;
-          status?: 'draft' | 'sent' | 'resolved';
+          status?: "draft" | "sent" | "resolved";
           evidence_url?: string | null;
           created_at?: string;
         };

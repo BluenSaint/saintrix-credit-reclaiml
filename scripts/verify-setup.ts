@@ -8,6 +8,8 @@ dotenv.config({ path: '.env.local' });
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 
+if (process.env.NODE_ENV === 'production') process.exit(0);
+
 async function verifySetup() {
   console.log('🔍 Starting SAINTRIX system verification...\n');
 
@@ -16,7 +18,7 @@ async function verifySetup() {
   try {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!);
     const { data, error } = await supabase.auth.getSession();
-    
+
     if (error) throw error;
     console.log('✅ Supabase connection successful\n');
   } catch (error) {
@@ -57,7 +59,7 @@ async function verifySetup() {
   ];
 
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
-  
+
   if (missingVars.length === 0) {
     console.log('✅ All required environment variables are set\n');
   } else {
@@ -88,4 +90,4 @@ async function verifySetup() {
   console.log('🎉 All verifications passed! The SAINTRIX system is ready to use.');
 }
 
-verifySetup().catch(console.error); 
+verifySetup().catch(console.error);

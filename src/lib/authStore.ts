@@ -24,7 +24,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-
-export function isAdmin(user: AuthUser | null | undefined): boolean {
-  return !!user && user.user_metadata?.role === "admin";
-}
