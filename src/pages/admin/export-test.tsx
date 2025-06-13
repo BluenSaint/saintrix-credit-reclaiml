@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useRouter } from 'next/router'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 
 export default function ExportTest() {
-  const router = useRouter()
+  const navigate = useNavigate()
   const [userId, setUserId] = useState('')
   const [format, setFormat] = useState<'pdf' | 'csv'>('pdf')
   const [isLoading, setIsLoading] = useState(false)

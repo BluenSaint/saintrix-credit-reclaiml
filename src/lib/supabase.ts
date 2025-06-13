@@ -1,4 +1,6 @@
+/// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 
 export type Json =
   | string
@@ -200,7 +202,7 @@ export interface Database {
   }
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey) 
+export const supabase = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+) 
