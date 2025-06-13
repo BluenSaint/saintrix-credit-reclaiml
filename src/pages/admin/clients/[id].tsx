@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -50,7 +49,6 @@ interface ClientDetails {
 }
 
 export default function ClientDetail() {
-  const router = useRouter()
   const { id } = router.query
   const [isLoading, setIsLoading] = useState(true)
   const [client, setClient] = useState<ClientDetails | null>(null)

@@ -1,4 +1,3 @@
-import { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '../../lib/supabase'
 import { ExportClient } from '../../services/export-client'
 import type { Database } from '../../lib/supabase'

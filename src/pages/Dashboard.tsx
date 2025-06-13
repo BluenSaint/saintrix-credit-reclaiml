@@ -33,7 +33,6 @@ import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useRouter } from 'next/router'
 import ClientGuard from '@/components/guards/ClientGuard'
 import { DisputeProgress } from "@/components/DisputeProgress";
 import { AIDashboardAssistant } from "@/components/AIDashboardAssistant";
@@ -51,7 +50,6 @@ interface DashboardData {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const router = useRouter();
   const [client, setClient] = useState(null);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
@@ -419,7 +417,7 @@ const Dashboard = () => {
                   <p><span className="font-medium">Score:</span> {data.creditReport.score}</p>
                   <p><span className="font-medium">Last Updated:</span> {new Date(data.creditReport.synced_at).toLocaleDateString()}</p>
                   <Button
-                    onClick={() => router.push('/credit-report')}
+                    onClick={() => navigate('/credit-report')}
                     variant="outline"
                     className="w-full mt-4"
                   >
@@ -430,7 +428,7 @@ const Dashboard = () => {
                 <div className="text-center py-4">
                   <p className="text-gray-500">No credit report available</p>
                   <Button
-                    onClick={() => router.push('/credit-sync')}
+                    onClick={() => navigate('/credit-sync')}
                     variant="outline"
                     className="w-full mt-4"
                   >
@@ -470,7 +468,7 @@ const Dashboard = () => {
                 <div className="text-center py-4">
                   <p className="text-gray-500">No active disputes</p>
                   <Button
-                    onClick={() => router.push('/disputes/new')}
+                    onClick={() => navigate('/disputes/new')}
                     variant="outline"
                     className="w-full mt-4"
                   >

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 
 interface ClientGuardProps {
@@ -7,7 +6,6 @@ interface ClientGuardProps {
 }
 
 export default function ClientGuard({ children }: ClientGuardProps) {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

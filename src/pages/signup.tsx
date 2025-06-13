@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +10,6 @@ import CreditReportSync from '@/components/credit/CreditReportSync'
 type SignupStep = 'personal' | 'documents' | 'credit' | 'complete'
 
 export default function Signup() {
-  const router = useRouter()
   const [step, setStep] = useState<SignupStep>('personal')
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -221,7 +219,6 @@ export default function Signup() {
                   Your account has been created and is ready to use.
                 </p>
                 <Button
-                  onClick={() => router.push('/dashboard')}
                   className="w-full"
                 >
                   Go to Dashboard

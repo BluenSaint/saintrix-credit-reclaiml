@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +8,6 @@ import { toast } from 'sonner'
 const ADMIN_ACCESS_CODE = 'SAINTRIX-SUPER-ACCESS-2024'
 
 export default function AdminLogin() {
-  const router = useRouter()
   const [accessCode, setAccessCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -56,7 +54,6 @@ export default function AdminLogin() {
       }
 
       toast.success('Admin access granted')
-      router.push('/admin')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Login failed')
     } finally {

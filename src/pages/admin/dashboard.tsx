@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -43,7 +42,6 @@ interface Feedback {
 }
 
 export default function AdminDashboard() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])

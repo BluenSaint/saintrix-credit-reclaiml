@@ -5,11 +5,8 @@ import { SubmitTestimonial } from '@/components/SubmitTestimonial'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
-import { useRouter } from 'next/router'
 
 export default function TrustPage() {
-  const router = useRouter()
-
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4">
@@ -48,7 +45,6 @@ export default function TrustPage() {
           </p>
           <Button
             size="lg"
-            onClick={() => router.push('/signup')}
             className="gap-2"
           >
             Get Started

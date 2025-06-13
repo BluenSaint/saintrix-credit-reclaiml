@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -28,7 +27,6 @@ interface CreditReport {
 }
 
 export default function CreditReport() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [report, setReport] = useState<CreditReport | null>(null)
 
