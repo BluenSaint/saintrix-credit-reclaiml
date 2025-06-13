@@ -2,6 +2,11 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
+// Debug logging for environment variables
+console.log('Checking Supabase environment variables...');
+console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? '✅ Set' : '❌ Missing');
+console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing');
+
 if (!import.meta.env.VITE_SUPABASE_URL) {
   throw new Error('Missing VITE_SUPABASE_URL environment variable')
 }
@@ -12,7 +17,14 @@ if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
 
 export const supabase = createClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 )
 
 // Helper function to check if user is admin

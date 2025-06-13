@@ -16,19 +16,44 @@ export interface AuthUser {
 export const useAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('Initializing auth hook...');
+    
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user as AuthUser);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError(sessionError);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('User session found:', session.user);
+          setUser(session.user as AuthUser);
+        } else {
+          console.log('No active session found');
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('Auth initialization error:', err);
+        setError(err instanceof Error ? err : new Error('Unknown auth error'));
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user);
+      
       if (session?.user) {
         setUser(session.user as AuthUser);
       } else {
@@ -138,23 +163,12 @@ export const useAuth = () => {
 
   const signOut = async () => {
     try {
-      if (user) {
-        await supabase.from('admin_logs').insert({
-          admin_id: user.id,
-          action: 'logout'
-        });
-      }
-
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-
-      setUser(null);
       navigate('/login');
-      toast.success('Logged out successfully');
-      return { error: null };
-    } catch (error: any) {
-      toast.error(error.message || 'Logout failed');
-      return { error };
+    } catch (err) {
+      console.error('Sign out error:', err);
+      toast.error('Failed to sign out');
     }
   };
 
@@ -174,6 +188,7 @@ export const useAuth = () => {
   return {
     user,
     loading,
+    error,
     signIn,
     signUp,
     signOut,
