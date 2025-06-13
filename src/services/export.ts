@@ -1,6 +1,6 @@
-import { supabase } from '../../lib/supabase'
-import { ExportClient } from '../../services/export-client'
-import type { Database } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
+import { ExportClient } from './export-client'
+import type { Database } from '@/types/supabase'
 
 type ExportRequest = {
   admin_id: string
@@ -8,20 +8,13 @@ type ExportRequest = {
   format: 'pdf' | 'csv'
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
+export async function handleExport(request: ExportRequest) {
   try {
     // Get session and verify admin role
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
     if (sessionError || !session) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      throw new Error('Unauthorized')
     }
 
     const { data: adminData, error: adminError } = await supabase
@@ -31,14 +24,14 @@ export default async function handler(
       .single()
 
     if (adminError || adminData?.role !== 'admin') {
-      return res.status(401).json({ error: 'Unauthorized - Admin access required' })
+      throw new Error('Unauthorized - Admin access required')
     }
 
     // Validate request body
-    const { admin_id, user_id, format } = req.body as ExportRequest
+    const { admin_id, user_id, format } = request
     
     if (!admin_id || !user_id || !format) {
-      return res.status(400).json({ error: 'Missing required fields' })
+      throw new Error('Missing required fields')
     }
 
     // Fetch client data
@@ -49,7 +42,7 @@ export default async function handler(
       .single()
 
     if (clientError || !client) {
-      return res.status(404).json({ error: 'Client not found' })
+      throw new Error('Client not found')
     }
 
     // Fetch related data
@@ -92,14 +85,13 @@ export default async function handler(
       console.error('Failed to log export action:', logError)
     }
 
-    // Return success response
-    return res.status(200).json({
+    return {
       success: true,
       message: `${format.toUpperCase()} export completed successfully`
-    })
+    }
 
   } catch (error) {
     console.error('Export error:', error)
-    return res.status(500).json({ error: 'Internal server error' })
+    throw error
   }
 } 

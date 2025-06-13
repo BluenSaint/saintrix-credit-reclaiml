@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
+import { AdminGuard } from '@/components/guards/AdminGuard'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Users, CreditCard, FileText, AlertCircle, BarChart2, Settings, Bell } from 'lucide-react'
-import AdminGuard from '@/components/guards/AdminGuard'
+import { Users, FileText, AlertCircle, Activity, ArrowRight } from 'lucide-react'
 import { SystemHealth } from '@/components/admin/SystemHealth'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,6 +13,18 @@ import { Badge } from '@/components/ui/badge'
 import { DisputeMetrics } from '@/components/admin/DisputeMetrics'
 import { DisputePrioritization } from '@/components/admin/DisputePrioritization'
 import { AtRiskUsers } from '@/components/admin/AtRiskUsers'
+
+interface DashboardStats {
+  totalClients: number
+  activeDisputes: number
+  pendingDocuments: number
+  recentActivity: Array<{
+    id: string
+    action: string
+    timestamp: string
+    client_name: string
+  }>
+}
 
 interface AdminStats {
   totalClients: number
@@ -42,138 +55,79 @@ interface Feedback {
 }
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalClients: 0,
+    activeDisputes: 0,
+    pendingDocuments: 0,
+    recentActivity: []
+  })
   const [isLoading, setIsLoading] = useState(true)
-  const [stats, setStats] = useState<AdminStats | null>(null)
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  const [feedback, setFeedback] = useState<Feedback[]>([])
   const [activeTab, setActiveTab] = useState('overview')
+  const [feedback, setFeedback] = useState<Feedback[]>([])
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        // Get current admin
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('No user found')
-
-        // Verify admin role
-        const { data: adminData, error: adminError } = await supabase
-          .from('admins')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-
-        if (adminError || !adminData) throw new Error('Not authorized')
-
-        // Fetch stats
-        const [
-          { count: totalClients },
-          { count: activeDisputes },
-          { count: pendingDocuments },
-          { count: recentCreditReports },
-          { data: feedbackData },
-          { count: totalFeedback }
-        ] = await Promise.all([
-          supabase.from('clients').select('*', { count: 'exact', head: true }),
-          supabase.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
-          supabase.from('documents').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('credit_reports').select('*', { count: 'exact', head: true })
-            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-          supabase.from('client_feedback').select('*, user:user_id(email)').order('created_at', { ascending: false }).limit(5),
-          supabase.from('client_feedback').select('*', { count: 'exact', head: true })
-        ])
-
-        // Calculate average rating
-        const averageRating = feedbackData
-          ? feedbackData.reduce((acc, curr) => acc + (curr.rating || 0), 0) / feedbackData.length
-          : 0
-
-        setStats({
-          totalClients: totalClients || 0,
-          activeDisputes: activeDisputes || 0,
-          pendingDocuments: pendingDocuments || 0,
-          recentCreditReports: recentCreditReports || 0,
-          totalFeedback: totalFeedback || 0,
-          averageRating
-        })
-
-        setFeedback(feedbackData || [])
-
-        // Fetch recent activity
-        const { data: activityData, error: activityError } = await supabase
-          .from('admin_logs')
-          .select(`
-            id,
-            action,
-            timestamp,
-            details,
-            clients (
-              full_name
-            )
-          `)
-          .order('timestamp', { ascending: false })
-          .limit(10)
-
-        if (activityError) throw activityError
-
-        setRecentActivity(activityData.map(log => ({
-          id: log.id,
-          type: log.action,
-          client_name: log.clients?.full_name || 'Unknown',
-          timestamp: log.timestamp,
-          details: log.details
-        })))
-      } catch (error) {
-        console.error('Admin dashboard data fetch error:', error)
-        toast.error('Failed to load admin dashboard data')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchAdminData()
-
-    // Set up real-time subscriptions
-    const subscriptions = [
-      supabase
-        .channel('admin_logs')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'admin_logs'
-          },
-          (payload) => {
-            setRecentActivity(prev => [{
-              id: payload.new.id,
-              type: payload.new.action,
-              client_name: payload.new.clients?.full_name || 'Unknown',
-              timestamp: payload.new.timestamp,
-              details: payload.new.details
-            }, ...prev].slice(0, 10))
-          }
-        ),
-      supabase
-        .channel('client_feedback')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'client_feedback'
-          },
-          (payload) => {
-            setFeedback(prev => [payload.new, ...prev].slice(0, 5))
-          }
-        )
-    ]
-
-    subscriptions.forEach(sub => sub.subscribe())
-
-    return () => {
-      subscriptions.forEach(sub => sub.unsubscribe())
-    }
+    fetchDashboardStats()
   }, [])
+
+  const fetchDashboardStats = async () => {
+    try {
+      // Fetch total clients
+      const { count: totalClients } = await supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+
+      // Fetch active disputes
+      const { count: activeDisputes } = await supabase
+        .from('disputes')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      // Fetch pending documents
+      const { count: pendingDocuments } = await supabase
+        .from('documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      // Fetch recent activity
+      const { data: recentActivity } = await supabase
+        .from('admin_logs')
+        .select(`
+          id,
+          action,
+          timestamp,
+          clients (
+            full_name
+          )
+        `)
+        .order('timestamp', { ascending: false })
+        .limit(5)
+
+      setStats({
+        totalClients: totalClients || 0,
+        activeDisputes: activeDisputes || 0,
+        pendingDocuments: pendingDocuments || 0,
+        recentActivity: recentActivity?.map(log => ({
+          id: log.id,
+          action: log.action,
+          timestamp: log.timestamp,
+          client_name: log.clients?.full_name || 'Unknown'
+        })) || []
+      })
+
+      // Fetch feedback
+      const { data: feedbackData } = await supabase
+        .from('client_feedback')
+        .select('*, user:user_id(email)').order('created_at', { ascending: false }).limit(5)
+
+      setFeedback(feedbackData || [])
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -204,77 +158,88 @@ export default function AdminDashboard() {
 
             <TabsContent value="overview" className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Card className="p-6">
-                  <div className="flex items-center space-x-3">
-                    <Users className="h-6 w-6 text-blue-500" />
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Total Clients</p>
-                      <p className="text-2xl font-bold">{stats?.totalClients}</p>
+                      <p className="text-sm font-medium text-gray-600">Total Clients</p>
+                      <p className="text-2xl font-bold">{stats.totalClients}</p>
                     </div>
+                    <Users className="h-8 w-8 text-blue-500" />
                   </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-4 w-full"
+                    onClick={() => navigate('/admin/clients')}
+                  >
+                    View Clients
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
                 </Card>
 
                 <Card className="p-6">
-                  <div className="flex items-center space-x-3">
-                    <AlertCircle className="h-6 w-6 text-red-500" />
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Active Disputes</p>
-                      <p className="text-2xl font-bold">{stats?.activeDisputes}</p>
+                      <p className="text-sm font-medium text-gray-600">Active Disputes</p>
+                      <p className="text-2xl font-bold">{stats.activeDisputes}</p>
                     </div>
+                    <AlertCircle className="h-8 w-8 text-yellow-500" />
                   </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-4 w-full"
+                    onClick={() => navigate('/admin/disputes')}
+                  >
+                    View Disputes
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
                 </Card>
 
                 <Card className="p-6">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-6 w-6 text-purple-500" />
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Pending Documents</p>
-                      <p className="text-2xl font-bold">{stats?.pendingDocuments}</p>
+                      <p className="text-sm font-medium text-gray-600">Pending Documents</p>
+                      <p className="text-2xl font-bold">{stats.pendingDocuments}</p>
                     </div>
+                    <FileText className="h-8 w-8 text-green-500" />
                   </div>
-                </Card>
-
-                <Card className="p-6">
-                  <div className="flex items-center space-x-3">
-                    <CreditCard className="h-6 w-6 text-green-500" />
-                    <div>
-                      <p className="text-sm text-gray-500">Recent Reports</p>
-                      <p className="text-2xl font-bold">{stats?.recentCreditReports}</p>
-                    </div>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-4 w-full"
+                    onClick={() => navigate('/admin/documents')}
+                  >
+                    View Documents
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
                 </Card>
               </div>
 
               {/* Recent Activity */}
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <BarChart2 className="h-6 w-6 text-gray-500" />
-                    <h2 className="text-lg font-medium">Recent Activity</h2>
-                  </div>
+                  <h2 className="text-xl font-semibold">Recent Activity</h2>
                   <Button
-                    variant="outline"
-                    onClick={() => router.push('/admin/activity')}
+                    variant="ghost"
+                    onClick={() => navigate('/admin/activity')}
                   >
                     View All
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
-
                 <div className="space-y-4">
-                  {recentActivity.map((activity) => (
+                  {stats.recentActivity.map((activity) => (
                     <div
                       key={activity.id}
                       className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
                     >
-                      <div>
-                        <p className="font-medium">{activity.type}</p>
-                        <p className="text-sm text-gray-500">
-                          Client: {activity.client_name}
-                        </p>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(activity.timestamp).toLocaleString()}
+                      <div className="flex items-center space-x-4">
+                        <Activity className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium">{activity.action}</p>
+                          <p className="text-sm text-gray-500">
+                            {activity.client_name} • {new Date(activity.timestamp).toLocaleString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -298,15 +263,13 @@ export default function AdminDashboard() {
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
-                    <Bell className="h-6 w-6 text-gray-500" />
-                    <h2 className="text-lg font-medium">Client Feedback</h2>
+                    <Badge variant="default">
+                      Average Rating: {feedback.reduce((acc, curr) => acc + (curr.rating || 0), 0) / feedback.length}
+                    </Badge>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="text-sm text-gray-500">
-                      Average Rating: {stats?.averageRating.toFixed(1)}/5
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Total Feedback: {stats?.totalFeedback}
+                      Total Feedback: {feedback.length}
                     </div>
                   </div>
                 </div>
@@ -346,28 +309,6 @@ export default function AdminDashboard() {
               <AtRiskUsers />
             </TabsContent>
           </Tabs>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-            <Button
-              onClick={() => router.push('/admin/clients')}
-              className="w-full h-24 text-lg"
-            >
-              Manage Clients
-            </Button>
-            <Button
-              onClick={() => router.push('/admin/disputes')}
-              className="w-full h-24 text-lg"
-            >
-              Handle Disputes
-            </Button>
-            <Button
-              onClick={() => router.push('/admin/settings')}
-              className="w-full h-24 text-lg"
-            >
-              System Settings
-            </Button>
-          </div>
         </div>
       </div>
     </AdminGuard>
