@@ -25,9 +25,6 @@ export const useAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('Initializing auth hook...');
-
-    // Get initial session
     const initializeAuth = async () => {
       try {
         const {
@@ -36,15 +33,12 @@ export const useAuth = () => {
         } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error('Session error:', sessionError);
           throw sessionError;
         }
 
         if (session?.user) {
-          console.log('User session found:', session.user);
           setUser(session.user as AuthUser);
         } else {
-          console.log('No active session found');
           setUser(null);
         }
       } catch (err) {
@@ -52,7 +46,6 @@ export const useAuth = () => {
           err instanceof Error
             ? (err as AuthError)
             : (new Error('Unknown auth error') as AuthError);
-        console.error('Auth initialization error:', authError);
         setError(authError);
       } finally {
         setLoading(false);
@@ -61,12 +54,9 @@ export const useAuth = () => {
 
     initializeAuth();
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user);
-
       if (session?.user) {
         setUser(session.user as AuthUser);
       } else {
