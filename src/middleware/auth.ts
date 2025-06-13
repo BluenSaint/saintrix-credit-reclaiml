@@ -1,0 +1,55 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { toast } from 'sonner'
+
+interface AuthGuardProps {
+  children: React.ReactNode
+  requireAdmin?: boolean
+  requireClient?: boolean
+  requireApproved?: boolean
+}
+
+export const AuthGuard = ({
+  children,
+  requireAdmin = false,
+  requireClient = false,
+  requireApproved = false
+}: AuthGuardProps) => {
+  const { user, loading, isAdmin, isClient, isApproved } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        toast.error('Please log in to access this page')
+        navigate('/login')
+        return
+      }
+
+      if (requireAdmin && !isAdmin) {
+        toast.error('Admin access required')
+        navigate('/dashboard')
+        return
+      }
+
+      if (requireClient && !isClient) {
+        toast.error('Client access required')
+        navigate('/admin')
+        return
+      }
+
+      if (requireApproved && !isApproved) {
+        toast.info('Your account is pending approval')
+        navigate('/pending-approval')
+        return
+      }
+    }
+  }, [user, loading, requireAdmin, requireClient, requireApproved, navigate])
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  return <>{children}</>
+} 

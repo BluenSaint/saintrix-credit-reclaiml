@@ -1,40 +1,3 @@
-/// <reference types="vite/client" />
-import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from './database.types'
-
-if (!import.meta.env.VITE_SUPABASE_URL) {
-  throw new Error('Missing VITE_SUPABASE_URL environment variable')
-}
-
-if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable')
-}
-
-export const supabase = createBrowserClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-)
-
-// Helper function to check if user is admin
-export const isAdmin = (user: any) => {
-  return user?.user_metadata?.role === 'admin'
-}
-
-// Helper function to check if user is client
-export const isClient = (user: any) => {
-  return user?.user_metadata?.role === 'client'
-}
-
-// Helper function to get user role
-export const getUserRole = (user: any) => {
-  return user?.user_metadata?.role
-}
-
-// Helper function to check if user is approved (for legacy clients)
-export const isApproved = (user: any) => {
-  return user?.user_metadata?.approved !== false
-}
-
 export type Json =
   | string
   | number
@@ -55,7 +18,7 @@ export interface Database {
           address: string
           ssn_last4: string
           created_at: string
-          updated_at: string
+          credit_insurance_enabled: boolean
         }
         Insert: {
           id?: string
@@ -65,7 +28,7 @@ export interface Database {
           address: string
           ssn_last4: string
           created_at?: string
-          updated_at?: string
+          credit_insurance_enabled?: boolean
         }
         Update: {
           id?: string
@@ -75,7 +38,7 @@ export interface Database {
           address?: string
           ssn_last4?: string
           created_at?: string
-          updated_at?: string
+          credit_insurance_enabled?: boolean
         }
       }
       disputes: {
@@ -220,6 +183,35 @@ export interface Database {
           role?: string
           created_at?: string
           updated_at?: string
+        }
+      }
+      tasks: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          due_date: string | null
+          priority: 'low' | 'medium' | 'high'
+          completed: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          due_date?: string | null
+          priority?: 'low' | 'medium' | 'high'
+          completed?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          due_date?: string | null
+          priority?: 'low' | 'medium' | 'high'
+          completed?: boolean
+          created_at?: string
         }
       }
     }

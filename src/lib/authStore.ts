@@ -1,21 +1,25 @@
-import { create } from "zustand";
-
-export interface AuthUser {
-  id: string;
-  email: string;
-  user_metadata: Record<string, any>;
-  [key: string]: any;
-}
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import type { AuthUser } from '@/hooks/useAuth'
 
 interface AuthState {
-  user: AuthUser | null;
-  setUser: (user: AuthUser | null) => void;
+  user: AuthUser | null
+  setUser: (user: AuthUser | null) => void
+  clearUser: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  setUser: (user) => set({ user })
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      setUser: (user) => set({ user }),
+      clearUser: () => set({ user: null })
+    }),
+    {
+      name: 'auth-storage'
+    }
+  )
+)
 
 export function isAdmin(user: AuthUser | null | undefined): boolean {
   return !!user && user.user_metadata?.role === "admin";
