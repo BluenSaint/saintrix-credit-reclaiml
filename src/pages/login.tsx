@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,9 +11,10 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { redirectTo } = router.query;
+  const redirectTo = searchParams.get('redirectTo');
 
   useEffect(() => {
     // Check if user is already logged in
@@ -22,11 +23,11 @@ export default function Login() {
       if (session) {
         const { data: { user } } = await supabase.auth.getUser();
         const isAdmin = user?.user_metadata?.role === 'admin';
-        router.push(isAdmin ? '/admin' : '/dashboard');
+        navigate(isAdmin ? '/admin' : '/dashboard');
       }
     };
     checkSession();
-  }, [router]);
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,9 +52,9 @@ export default function Login() {
 
         // Redirect based on role and redirectTo parameter
         if (redirectTo) {
-          router.push(redirectTo as string);
+          navigate(redirectTo);
         } else {
-          router.push(isAdmin ? '/admin' : '/dashboard');
+          navigate(isAdmin ? '/admin' : '/dashboard');
         }
       }
     } catch (error: any) {
